@@ -45,8 +45,9 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
-    'apps.AutenticacionySeguridad',
-    'apps.GestionClientesyMascotas',
+    'accounts',
+    'apps.AutenticacionySeguridad'
+    
 
 ]
 
@@ -157,4 +158,7 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
     "USER_ID_FIELD": "id_usuario",
     "USER_ID_CLAIM": "user_id",
+    
 }
+
+

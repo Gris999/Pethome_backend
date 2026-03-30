@@ -6,6 +6,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.AutenticacionySeguridad.serializers.login_serializer import LoginSerializer
 from apps.AutenticacionySeguridad.serializers.user_serializer import UserSerializer
+from rest_framework.permissions import AllowAny
+
+
 
 
 def get_tokens_for_user(user):
@@ -16,8 +19,8 @@ def get_tokens_for_user(user):
         "access": str(refresh.access_token),
     }
 
-
 class LoginView(APIView):
+    permission_classes = [AllowAny]  
     """
     POST /api/auth/login/
     Body: { "correo": "...", "password": "..." }
