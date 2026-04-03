@@ -4,7 +4,6 @@ from rest_framework import serializers
 from ..models import Perfil, User, Rol
 
 # Logica de negocio para crear y actualizar perfiles
-
 @transaction.atomic
 def create_user_with_profile(*, correo, password, id_rol, nombre, telefono, direccion):
     try:
