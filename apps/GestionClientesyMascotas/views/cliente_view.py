@@ -1,16 +1,21 @@
-"""Views de gestión de clientes basadas en usuarios/perfiles."""
-
-from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+
 from rest_framework import status
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.AutenticacionySeguridad.models import Perfil, Rol
-from apps.AutenticacionySeguridad.permissions import IsAdminRole
-from apps.AutenticacionySeguridad.serializers import PerfilCreateSerializer, PerfilSerializer
+from apps.AutenticacionySeguridad.permissions import IsAdminRole, IsClientRole
+from apps.AutenticacionySeguridad.serializers.perfil_serializer import (
+    PerfilSerializer,
+    PerfilCreateSerializer,
+    PerfilUpdateSerializer,
+)
+from apps.AutenticacionySeguridad.services.perfil_service import (
+    deactivate_user_profile,
+)
 
 
 class ClientePagination(PageNumberPagination):
@@ -20,14 +25,15 @@ class ClientePagination(PageNumberPagination):
 
 
 class ClienteListCreateView(APIView):
-    """CRUD (lista y creación) de clientes usando User + Perfil."""
-
     permission_classes = [IsAdminRole]
 
     def get_queryset(self):
-        return Perfil.objects.select_related("usuario", "usuario__role").filter(
-            usuario__role__nombre=Rol.RolName.CLIENT
-        ).order_by("-id_perfil")
+        return (
+            Perfil.objects
+            .select_related("usuario", "usuario__role")
+            .filter(usuario__role__nombre=Rol.RolName.CLIENT)
+            .order_by("-id_perfil")
+        )
 
     def get(self, request):
         queryset = self.get_queryset()
@@ -67,23 +73,24 @@ class ClienteListCreateView(APIView):
             )
 
         serializer = PerfilCreateSerializer(data=data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.is_valid(raise_exception=True)
 
         perfil = serializer.save()
         return Response(PerfilSerializer(perfil).data, status=status.HTTP_201_CREATED)
 
 
 class ClienteDetailView(APIView):
-    """CRUD (detalle, actualización y eliminación) de clientes."""
-
     permission_classes = [IsAdminRole]
 
-    def get_object(self, pk: int) -> Perfil:
-        queryset = Perfil.objects.select_related("usuario", "usuario__role").filter(
-            usuario__role__nombre=Rol.RolName.CLIENT
+    def get_queryset(self):
+        return (
+            Perfil.objects
+            .select_related("usuario", "usuario__role")
+            .filter(usuario__role__nombre=Rol.RolName.CLIENT)
         )
-        return get_object_or_404(queryset, pk=pk)
+
+    def get_object(self, pk):
+        return get_object_or_404(self.get_queryset(), pk=pk)
 
     def get(self, request, pk):
         perfil = self.get_object(pk)
@@ -92,24 +99,45 @@ class ClienteDetailView(APIView):
 
     def put(self, request, pk):
         perfil = self.get_object(pk)
-        serializer = PerfilSerializer(perfil, data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PerfilUpdateSerializer(perfil, data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        perfil = serializer.save()
+        return Response(PerfilSerializer(perfil).data, status=status.HTTP_200_OK)
 
     def patch(self, request, pk):
         perfil = self.get_object(pk)
-        serializer = PerfilSerializer(perfil, data=request.data, partial=True)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PerfilUpdateSerializer(perfil, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
 
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        perfil = serializer.save()
+        return Response(PerfilSerializer(perfil).data, status=status.HTTP_200_OK)
 
-    @transaction.atomic
     def delete(self, request, pk):
         perfil = self.get_object(pk)
-        perfil.usuario.delete()
+        deactivate_user_profile(perfil=perfil)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ClienteMeView(APIView):
+    permission_classes = [IsClientRole]
+
+    def get_object(self, request):
+        return get_object_or_404(
+            Perfil.objects.select_related("usuario", "usuario__role"),
+            usuario=request.user,
+            usuario__role__nombre=Rol.RolName.CLIENT,
+        )
+
+    def get(self, request):
+        perfil = self.get_object(request)
+        serializer = PerfilSerializer(perfil)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def patch(self, request):
+        perfil = self.get_object(request)
+        serializer = PerfilUpdateSerializer(perfil, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        perfil = serializer.save()
+        return Response(PerfilSerializer(perfil).data, status=status.HTTP_200_OK)
