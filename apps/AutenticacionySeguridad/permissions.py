@@ -1,81 +1,50 @@
 from rest_framework.permissions import BasePermission
-
 from apps.AutenticacionySeguridad.enums.roles import RoleEnum
 
-"""
-Permisos personalizados para control de acceso basado en roles.
 
-Este módulo centraliza la lógica de autorización por perfil
-para ser reutilizada en las vistas del sistema.
-"""
+class HasRolePermission(BasePermission):
+    allowed_roles = []
+    message = "No tienes permisos para realizar esta acción."
 
-class IsAdminRole(BasePermission):
+    def has_permission(self, request, view):
+        user = request.user
+        return (
+            user
+            and user.is_authenticated
+            and getattr(user, "role", None)
+            and user.role.nombre in self.allowed_roles
+        )
+
+
+class IsAdminRole(HasRolePermission):
+    allowed_roles = [RoleEnum.ADMIN.value]
     message = "Solo los administradores pueden realizar esta acción."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user
-            and user.is_authenticated
-            and user.role
-            and user.role.nombre == RoleEnum.ADMIN.value
-        )
 
-
-class IsVeterinarianRole(BasePermission):
+class IsVeterinarianRole(HasRolePermission):
+    allowed_roles = [RoleEnum.VETERINARIAN.value]
     message = "Solo los veterinarios pueden realizar esta acción."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user
-            and user.is_authenticated
-            and user.role
-            and user.role.nombre == RoleEnum.VETERINARIAN.value
-        )
 
-
-class IsClientRole(BasePermission):
+class IsClientRole(HasRolePermission):
+    allowed_roles = [RoleEnum.CLIENT.value]
     message = "Solo los clientes pueden realizar esta acción."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user
-            and user.is_authenticated
-            and user.role
-            and user.role.nombre == RoleEnum.CLIENT.value
-        )
-    
-class IsAdminOrVeterinarian(BasePermission):
+
+class IsAdminOrVeterinarian(HasRolePermission):
+    allowed_roles = [
+        RoleEnum.ADMIN.value,
+        RoleEnum.VETERINARIAN.value,
+    ]
     message = "Solo administradores o veterinarios pueden realizar esta acción."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user
-            and user.is_authenticated
-            and user.role
-            and user.role.nombre in [
-                RoleEnum.ADMIN.value,
-                RoleEnum.VETERINARIAN.value,
-            ]
-        )
-        
-class IsAdminOrClient(BasePermission):
-    message = "Solo administradores o clientes pueden realizar esta acción."
 
-    def has_permission(self, request, view):
-        user = request.user
-        return (
-            user
-            and user.is_authenticated
-            and user.role
-            and user.role.nombre in [
-                RoleEnum.ADMIN.value,
-                RoleEnum.CLIENT.value,
-            ]
-        )
+class IsAdminOrClient(HasRolePermission):
+    allowed_roles = [
+        RoleEnum.ADMIN.value,
+        RoleEnum.CLIENT.value,
+    ]
+    message = "Solo administradores o clientes pueden realizar esta acción."
 
 """
 EQUIPO AVISO IMPORTANTE ESTO PARA CADA APP
