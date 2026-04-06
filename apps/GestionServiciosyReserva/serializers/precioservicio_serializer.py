@@ -11,6 +11,7 @@ class PrecioServicioSerializer(serializers.ModelSerializer):
             "servicio",
             "servicio_nombre",
             "variacion",
+            "modalidad",
             "precio",
             "descripcion",
             "estado",
@@ -26,11 +27,13 @@ class PrecioServicioSerializer(serializers.ModelSerializer):
     def validate(self, data):
         servicio = data.get("servicio", self.instance.servicio if self.instance else None)
         variacion = data.get("variacion", self.instance.variacion if self.instance else None)
+        modalidad = data.get("modalidad", self.instance.modalidad if self.instance else None)
 
         if servicio and variacion:
             queryset = PrecioServicio.objects.filter(
                 servicio=servicio,
-                variacion__iexact=variacion.strip()
+                variacion__iexact=variacion.strip(),
+                modalidad__iexact=modalidad.strip() if modalidad else modalidad,
             )
 
             if self.instance:
@@ -38,6 +41,7 @@ class PrecioServicioSerializer(serializers.ModelSerializer):
 
             if queryset.exists():
                 raise serializers.ValidationError({
-                    "variacion": "Ya existe un precio para este servicio con esta variación."
+                    "variacion": "Ya existe un precio para este servicio con esta variación y modalidad."
                 })
+
         return data

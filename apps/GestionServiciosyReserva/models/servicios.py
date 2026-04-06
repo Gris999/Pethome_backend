@@ -1,4 +1,4 @@
-from django.db import models 
+from django.db import models
 from .categoriaservicio import CategoriaServicio
 
 class Servicio(models.Model):
@@ -11,6 +11,11 @@ class Servicio(models.Model):
         db_column="id_categoria",
         related_name="servicios",
     )
+
+    # NUEVOS ATRIBUTOS
+    duracion_estimada = models.IntegerField(blank=True, null=True)
+    disponible_domicilio = models.BooleanField(default=True)
+
     estado = models.BooleanField(default=True)
 
     class Meta:

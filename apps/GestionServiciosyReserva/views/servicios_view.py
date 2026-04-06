@@ -3,9 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from ..models import Servicio
-from ..serializers.servicios_serializer import (
-    ServicioSerializer
-)
+from ..serializers.servicios_serializer import ServicioSerializer
 
 
 class ServicioListCreateView(APIView):
@@ -21,14 +19,31 @@ class ServicioListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class ServicioDetailView(APIView):
+    def get_object(self, pk):
+        try:
+            return Servicio.objects.get(pk=pk)
+        except Servicio.DoesNotExist:
+            return None
+
     def get(self, request, pk):
-        servicio = Servicio.objects.get(pk=pk)
+        servicio = self.get_object(pk)
+        if not servicio:
+            return Response(
+                {"error": "Servicio no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = ServicioSerializer(servicio)
         return Response(serializer.data)
 
     def put(self, request, pk):
-        servicio = Servicio.objects.get(pk=pk)
+        servicio = self.get_object(pk)
+        if not servicio:
+            return Response(
+                {"error": "Servicio no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = ServicioSerializer(servicio, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -36,16 +51,17 @@ class ServicioDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        try:
-            servicio = Servicio.objects.get(pk=pk)
-        except Servicio.DoesNotExist:
-            return Response({"error": "Servicio no encontrado"}, status=status.HTTP_404_NOT_FOUND)
+        servicio = self.get_object(pk)
+        if not servicio:
+            return Response(
+                {"error": "Servicio no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        servicio.estado = not servicio.estado 
+        servicio.estado = not servicio.estado
         servicio.save()
 
         return Response({
             "message": "Estado actualizado correctamente",
             "estado": servicio.estado
         }, status=status.HTTP_200_OK)
-

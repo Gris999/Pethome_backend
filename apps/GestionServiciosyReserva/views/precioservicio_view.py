@@ -19,14 +19,31 @@ class PrecioServicioListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class PrecioServicioDetailView(APIView):
+    def get_object(self, pk):
+        try:
+            return PrecioServicio.objects.get(pk=pk)
+        except PrecioServicio.DoesNotExist:
+            return None
+
     def get(self, request, pk):
-        precio = PrecioServicio.objects.get(pk=pk)
+        precio = self.get_object(pk)
+        if not precio:
+            return Response(
+                {"error": "Precio no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = PrecioServicioSerializer(precio)
         return Response(serializer.data)
 
     def put(self, request, pk):
-        precio = PrecioServicio.objects.get(pk=pk)
+        precio = self.get_object(pk)
+        if not precio:
+            return Response(
+                {"error": "Precio no encontrado"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = PrecioServicioSerializer(precio, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -34,15 +51,14 @@ class PrecioServicioDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        try:
-            precio = PrecioServicio.objects.get(pk=pk)
-        except PrecioServicio.DoesNotExist:
+        precio = self.get_object(pk)
+        if not precio:
             return Response(
                 {"error": "Precio no encontrado"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        precio.estado = not precio.estado  
+        precio.estado = not precio.estado
         precio.save()
 
         return Response({

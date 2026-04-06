@@ -5,7 +5,7 @@ class CategoriaServicioSerializer(serializers.ModelSerializer):
     class Meta:
         model = CategoriaServicio
         fields = ["id_categoria", "nombre", "descripcion", "estado"]
-        
+
     def validate_nombre(self, value):
         value = value.strip()
         if not value:

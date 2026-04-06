@@ -1,8 +1,3 @@
-from .servicios_view import (
-    CategoriaServicioListCreateView,
-    CategoriaServicioDetailView,
-    ServicioListCreateView,
-    ServicioDetailView,
-    PrecioServicioListCreateView,
-    PrecioServicioDetailView,
-)
+from .servicios_view import ServicioListCreateView, ServicioDetailView
+from .precioservicio_view import PrecioServicioListCreateView, PrecioServicioDetailView
+from .categoriaservicio_view import CategoriaServicioListCreateView, CategoriaServicioDetailView

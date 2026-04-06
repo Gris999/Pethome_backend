@@ -5,9 +5,20 @@ from ..models import CategoriaServicio, Servicio
 
 class ServicioSerializer(serializers.ModelSerializer):
     categoria_nombre = serializers.CharField(source="categoria.nombre", read_only=True)
+
     class Meta:
         model = Servicio
-        fields = ["id_servicio", "nombre", "descripcion", "categoria", "categoria_nombre", "estado"]
+        fields = [
+            "id_servicio",
+            "nombre",
+            "descripcion",
+            "categoria",
+            "categoria_nombre",
+            "duracion_estimada",
+            "disponible_domicilio",
+            "estado",
+        ]
+
     def validate_nombre(self, value):
         value = value.strip()
         if not value:
@@ -18,8 +29,14 @@ class ServicioSerializer(serializers.ModelSerializer):
         if queryset.exists():
             raise serializers.ValidationError("Ya existe un servicio con este nombre.")
         return value
+
     def validate_categoria(self, value):
         if not CategoriaServicio.objects.filter(pk=value.pk, estado=True).exists():
             raise serializers.ValidationError("La categoría seleccionada no es válida o está inactiva.")
-        return value 
+        return value
+    def validate_duracion_estimada(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("La duración estimada no puede ser negativa.")
+        return value
+
     

@@ -6,7 +6,6 @@ from ..models import CategoriaServicio
 from ..serializers.categoriaservicio_serializer import CategoriaServicioSerializer
 
 
-
 class CategoriaServicioListCreateView(APIView):
     def get(self, request):
         categorias = CategoriaServicio.objects.all()
@@ -20,14 +19,31 @@ class CategoriaServicioListCreateView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class CategoriaServicioDetailView(APIView):
+    def get_object(self, pk):
+        try:
+            return CategoriaServicio.objects.get(pk=pk)
+        except CategoriaServicio.DoesNotExist:
+            return None
+
     def get(self, request, pk):
-        categoria = CategoriaServicio.objects.get(pk=pk)
+        categoria = self.get_object(pk)
+        if not categoria:
+            return Response(
+                {"error": "Categoría no encontrada"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = CategoriaServicioSerializer(categoria)
         return Response(serializer.data)
 
     def put(self, request, pk):
-        categoria = CategoriaServicio.objects.get(pk=pk)
+        categoria = self.get_object(pk)
+        if not categoria:
+            return Response(
+                {"error": "Categoría no encontrada"},
+                status=status.HTTP_404_NOT_FOUND
+            )
         serializer = CategoriaServicioSerializer(categoria, data=request.data)
         if serializer.is_valid():
             serializer.save()
@@ -35,15 +51,14 @@ class CategoriaServicioDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        try:
-            categoria = CategoriaServicio.objects.get(pk=pk)
-        except CategoriaServicio.DoesNotExist:
+        categoria = self.get_object(pk)
+        if not categoria:
             return Response(
                 {"error": "Categoría no encontrada"},
                 status=status.HTTP_404_NOT_FOUND
             )
 
-        categoria.estado = not categoria.estado  
+        categoria.estado = not categoria.estado
         categoria.save()
 
         return Response({

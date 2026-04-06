@@ -10,7 +10,19 @@ class PrecioServicio(models.Model):
         related_name="precios"
     )
 
-    variacion = models.CharField(max_length=50, default="General")
+    variacion = models.CharField(
+        max_length=50,
+        default="General",
+        help_text="Tamaño de la mascota: Pequeño, Mediano, Grande"
+    )
+
+    modalidad = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True,
+        help_text="Modalidad del servicio: Domicilio o Clínica"
+    )
+
     precio = models.DecimalField(max_digits=10, decimal_places=2)
     descripcion = models.TextField(blank=True, null=True)
     estado = models.BooleanField(default=True)
@@ -21,4 +33,4 @@ class PrecioServicio(models.Model):
         verbose_name_plural = "Precios de Servicio"
 
     def __str__(self):
-        return f"{self.servicio.nombre} - {self.variacion}"
+        return f"{self.servicio.nombre} - {self.variacion} - {self.modalidad}"
