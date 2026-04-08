@@ -7,3 +7,7 @@ from .precioservicio_serializer import (
 from .categoriaservicio_serializer import (
     CategoriaServicioSerializer,
 )
+from .citas_serializer import (
+    CitaSerializer,
+    CitaEstadoUpdateSerializer,
+)
