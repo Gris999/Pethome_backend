@@ -8,5 +8,6 @@ urlpatterns = [
     path("api/auth/", include("apps.AutenticacionySeguridad.urls")),
     path("api/gestion/clientes/", include("apps.GestionClientesyMascotas.urls")),
     path("api/auth/token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
+    
 
 ]
