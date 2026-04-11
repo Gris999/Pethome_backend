@@ -15,18 +15,33 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='TipoMascota',
+            name='Especie',
             fields=[
-                ('id_tipo_mascota', models.AutoField(primary_key=True, serialize=False)),
-                ('especie', models.CharField(max_length=100)),
-                ('raza', models.CharField(max_length=100)),
-                ('descripcion', models.TextField(blank=True, null=True)),
-                ('estado', models.BooleanField(default=True)),
+                ('id_especie', models.AutoField(primary_key=True, serialize=False)),
+                ('nombre', models.CharField(max_length=100, unique=True)),
             ],
             options={
-                'verbose_name': 'Tipo de Mascota',
-                'verbose_name_plural': 'Tipos de Mascota',
-                'db_table': 'tipo_mascota',
+                'verbose_name': 'Especie',
+                'verbose_name_plural': 'Especies',
+                'db_table': 'especie',
+            },
+        ),
+        migrations.CreateModel(
+            name='Raza',
+            fields=[
+                ('id_raza', models.AutoField(primary_key=True, serialize=False)),
+                ('nombre', models.CharField(max_length=100)),
+                ('especie', models.ForeignKey(
+                    db_column='id_especie',
+                    on_delete=django.db.models.deletion.PROTECT,
+                    related_name='razas',
+                    to='GestionClientesyMascotas.especie'
+                )),
+            ],
+            options={
+                'verbose_name': 'Raza',
+                'verbose_name_plural': 'Razas',
+                'db_table': 'raza',
             },
         ),
         migrations.CreateModel(
@@ -35,7 +50,12 @@ class Migration(migrations.Migration):
                 ('id_mascota', models.AutoField(primary_key=True, serialize=False)),
                 ('nombre', models.CharField(max_length=100)),
                 ('color', models.CharField(blank=True, max_length=100, null=True)),
-                ('sexo', models.CharField(blank=True, choices=[('MACHO', 'Macho'), ('HEMBRA', 'Hembra')], max_length=10, null=True)),
+                ('sexo', models.CharField(
+                    blank=True,
+                    choices=[('MACHO', 'Macho'), ('HEMBRA', 'Hembra')],
+                    max_length=10,
+                    null=True
+                )),
                 ('fecha_nac', models.DateField(blank=True, null=True)),
                 ('tamano', models.CharField(blank=True, max_length=50, null=True)),
                 ('peso', models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True)),
@@ -44,13 +64,35 @@ class Migration(migrations.Migration):
                 ('notas_generales', models.TextField(blank=True, null=True)),
                 ('fecha_registro', models.DateTimeField(auto_now_add=True)),
                 ('estado', models.BooleanField(default=True)),
-                ('usuario', models.ForeignKey(db_column='id_usuario', on_delete=django.db.models.deletion.CASCADE, related_name='mascotas', to=settings.AUTH_USER_MODEL)),
-                ('tipo_mascota', models.ForeignKey(db_column='id_tipo_mascota', on_delete=django.db.models.deletion.PROTECT, related_name='mascotas', to='GestionClientesyMascotas.tipomascota')),
+                ('usuario', models.ForeignKey(
+                    db_column='id_usuario',
+                    on_delete=django.db.models.deletion.CASCADE,
+                    related_name='mascotas',
+                    to=settings.AUTH_USER_MODEL
+                )),
+                ('especie', models.ForeignKey(
+                    db_column='id_especie',
+                    on_delete=django.db.models.deletion.PROTECT,
+                    related_name='mascotas',
+                    to='GestionClientesyMascotas.especie'
+                )),
+                ('raza', models.ForeignKey(
+                    db_column='id_raza',
+                    on_delete=django.db.models.deletion.PROTECT,
+                    related_name='mascotas',
+                    to='GestionClientesyMascotas.raza',
+                    blank=True,
+                    null=True
+                )),
             ],
             options={
                 'verbose_name': 'Mascota',
                 'verbose_name_plural': 'Mascotas',
                 'db_table': 'mascota',
             },
+        ),
+        migrations.AlterUniqueTogether(
+            name='raza',
+            unique_together={('especie', 'nombre')},
         ),
     ]
