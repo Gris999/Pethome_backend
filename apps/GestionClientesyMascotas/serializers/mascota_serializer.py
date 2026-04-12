@@ -6,16 +6,23 @@ from apps.AutenticacionySeguridad.models.user import User
 
 
 class UsuarioMiniSerializer(serializers.ModelSerializer):
-    nombre_completo = serializers.SerializerMethodField()
+    nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "nombre_completo"]
+        fields = ["id_usuario", "correo", "nombre"]
 
-    def get_nombre_completo(self, obj):
-        first_name = getattr(obj, "first_name", "") or ""
-        last_name = getattr(obj, "last_name", "") or ""
-        return f"{first_name} {last_name}".strip()
+    def get_nombre(self, obj):
+        if hasattr(obj, "perfil") and obj.perfil:
+            return obj.perfil.nombre
+        return obj.correo
+
+
+class UsuarioChoiceField(serializers.PrimaryKeyRelatedField):
+    def display_value(self, instance):
+        if hasattr(instance, "perfil") and instance.perfil:
+            return instance.perfil.nombre
+        return f"Usuario {instance.id_usuario}"
 
 
 class EspecieMiniSerializer(serializers.ModelSerializer):
@@ -35,8 +42,11 @@ class MascotaSerializer(serializers.ModelSerializer):
     especie = EspecieMiniSerializer(read_only=True)
     raza = RazaMiniSerializer(read_only=True)
 
-    usuario_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
+    usuario_id = UsuarioChoiceField(
+        queryset=User.objects.filter(
+            role_id=3,
+            is_active=True
+        ).select_related("perfil"),
         source="usuario",
         write_only=True
     )
