@@ -1,0 +1,95 @@
+from rest_framework import serializers
+from apps.GestionClientesyMascotas.models.mascota import Mascota
+from apps.GestionClientesyMascotas.models.especie import Especie
+from apps.GestionClientesyMascotas.models.raza import Raza
+from apps.AutenticacionySeguridad.models.user import User
+
+
+class UsuarioMiniSerializer(serializers.ModelSerializer):
+    nombre_completo = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "nombre_completo"]
+
+    def get_nombre_completo(self, obj):
+        first_name = getattr(obj, "first_name", "") or ""
+        last_name = getattr(obj, "last_name", "") or ""
+        return f"{first_name} {last_name}".strip()
+
+
+class EspecieMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Especie
+        fields = ["id_especie", "nombre"]
+
+
+class RazaMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Raza
+        fields = ["id_raza", "nombre"]
+
+
+class MascotaSerializer(serializers.ModelSerializer):
+    usuario = UsuarioMiniSerializer(read_only=True)
+    especie = EspecieMiniSerializer(read_only=True)
+    raza = RazaMiniSerializer(read_only=True)
+
+    usuario_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        source="usuario",
+        write_only=True
+    )
+    especie_id = serializers.PrimaryKeyRelatedField(
+        queryset=Especie.objects.all(),
+        source="especie",
+        write_only=True
+    )
+    raza_id = serializers.PrimaryKeyRelatedField(
+        queryset=Raza.objects.all(),
+        source="raza",
+        write_only=True,
+        allow_null=True,
+        required=False
+    )
+
+    class Meta:
+        model = Mascota
+        fields = [
+            "id_mascota",
+            "nombre",
+            "color",
+            "sexo",
+            "fecha_nac",
+            "tamano",
+            "peso",
+            "foto",
+            "alergias",
+            "notas_generales",
+            "fecha_registro",
+            "estado",
+            "usuario",
+            "especie",
+            "raza",
+            "usuario_id",
+            "especie_id",
+            "raza_id",
+        ]
+        read_only_fields = ["id_mascota", "fecha_registro"]
+
+    def validate(self, attrs):
+        especie = attrs.get("especie")
+        raza = attrs.get("raza")
+
+        if self.instance:
+            if especie is None:
+                especie = self.instance.especie
+            if raza is None:
+                raza = self.instance.raza
+
+        if raza and especie and raza.especie_id != especie.id_especie:
+            raise serializers.ValidationError({
+                "raza_id": "La raza seleccionada no pertenece a la especie indicada."
+            })
+
+        return attrs
