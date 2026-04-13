@@ -1,5 +1,5 @@
-"""Package de modelos para GestionClientesyMascotas."""
+from .mascota import Mascota
+from .especie import Especie
+from .raza import Raza
 
-from .cliente import Cliente
-
-__all__ = ["Cliente"]
+__all__ = ["Mascota", "Especie", "Raza"]
