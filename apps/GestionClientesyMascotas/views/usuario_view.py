@@ -4,9 +4,17 @@ from apps.AutenticacionySeguridad.models.user import User
 
 
 class UsuarioListSerializer(serializers.ModelSerializer):
+    nombre = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id_usuario", "correo"]
+        fields = ["id_usuario", "nombre"]
+
+    def get_nombre(self, obj):
+        try:
+            return obj.perfil.nombre
+        except Exception:
+            return f"Usuario {obj.id_usuario}"
 
 
 class UsuarioListView(generics.ListAPIView):
