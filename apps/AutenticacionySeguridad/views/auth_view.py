@@ -144,6 +144,17 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        _registrar_bitacora_seguro(
+            BitacoraService.registrar_evento,
+            accion=BitacoraAccion.VISUALIZAR,
+            descripcion="Consulta de datos del usuario autenticado.",
+            usuario=request.user,
+            request=request,
+            modulo=BitacoraModulo.USUARIOS,
+            entidad_tipo="User",
+            entidad_id=getattr(request.user, "id_usuario", ""),
+            resultado=BitacoraResultado.EXITO,
+        )
         return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
 
 
