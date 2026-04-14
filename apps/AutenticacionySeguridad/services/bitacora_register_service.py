@@ -37,6 +37,17 @@ class BitacoraService:
         "secret",
     }
 
+    _EXCLUDED_METADATA_KEYS = {
+        "correo",
+        "correo_objetivo",
+        "email",
+    }
+
+    _ERROR_METADATA_KEYS = {
+        "error",
+        "errores",
+    }
+
     @staticmethod
     def _normalizar_ip(ip: Optional[str]) -> Optional[str]:
         if not ip:
@@ -88,6 +99,84 @@ class BitacoraService:
 
         # Garantiza que el payload sea serializable a JSON para evitar fallos en DB.
         return json.loads(json.dumps(salida, default=str))
+
+    @staticmethod
+    def _resumir_errores(value: Any) -> str:
+        if value is None:
+            return ""
+
+        if isinstance(value, dict):
+            partes = []
+            for key, sub_value in value.items():
+                if isinstance(sub_value, (list, tuple, set)):
+                    valor_str = ", ".join(
+                        BitacoraService._recortar_texto(str(item), 120)
+                        for item in list(sub_value)[:2]
+                    )
+                else:
+                    valor_str = BitacoraService._recortar_texto(str(sub_value), 120)
+
+                partes.append(f"{key}: {valor_str}")
+                if len(partes) >= 5:
+                    break
+
+            return BitacoraService._recortar_texto(" | ".join(partes), 500)
+
+        if isinstance(value, (list, tuple, set)):
+            return BitacoraService._recortar_texto(
+                " | ".join(BitacoraService._recortar_texto(str(item), 120) for item in list(value)[:5]),
+                500,
+            )
+
+        return BitacoraService._recortar_texto(str(value), 500)
+
+    @staticmethod
+    def _depurar_metadatos(metadatos: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        if not metadatos:
+            return {}
+
+        salida = dict(metadatos)
+
+        for key in BitacoraService._EXCLUDED_METADATA_KEYS:
+            salida.pop(key, None)
+
+        for key in BitacoraService._ERROR_METADATA_KEYS:
+            if key in salida:
+                resumen = BitacoraService._resumir_errores(salida.pop(key))
+                if resumen:
+                    salida[f"{key}_resumen"] = resumen
+
+        return salida
+
+    @staticmethod
+    def _enriquecer_metadatos_contexto(
+        metadatos: Optional[Dict[str, Any]],
+        request: Optional[HttpRequest],
+        usuario: Optional[UserType],
+        entidad_tipo: str,
+        entidad_id: str,
+    ) -> Dict[str, Any]:
+        salida: Dict[str, Any] = dict(metadatos or {})
+
+        if request is not None:
+            salida.setdefault("metodo", getattr(request, "method", ""))
+            salida.setdefault("ruta", getattr(request, "path", ""))
+
+        if usuario is not None:
+            actor_id = getattr(usuario, "id_usuario", None)
+            if actor_id is not None:
+                salida.setdefault("actor_id", actor_id)
+
+            actor_rol = getattr(getattr(usuario, "role", None), "nombre", None)
+            if actor_rol:
+                salida.setdefault("actor_rol", actor_rol)
+
+        if entidad_tipo:
+            salida.setdefault("entidad_tipo", entidad_tipo)
+        if entidad_id:
+            salida.setdefault("entidad_id", entidad_id)
+
+        return salida
 
     @staticmethod
     def _resolver_usuario_actor(
@@ -174,6 +263,14 @@ class BitacoraService:
         user_agent = BitacoraService._recortar_texto(user_agent, 1024)
         entidad_tipo = BitacoraService._recortar_texto(entidad_tipo, 100)
         entidad_id = BitacoraService._recortar_texto(str(entidad_id) if entidad_id else "", 50)
+        metadatos = BitacoraService._depurar_metadatos(metadatos)
+        metadatos = BitacoraService._enriquecer_metadatos_contexto(
+            metadatos=metadatos,
+            request=request,
+            usuario=usuario,
+            entidad_tipo=entidad_tipo,
+            entidad_id=entidad_id,
+        )
         metadatos = BitacoraService._sanitizar_metadatos(metadatos)
 
         if not descripcion:

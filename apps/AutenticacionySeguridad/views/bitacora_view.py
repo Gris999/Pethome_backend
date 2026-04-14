@@ -3,9 +3,18 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework import filters, generics
 
 from ..filters import BitacoraFilter
+from ..events.bitacora_events import BitacoraAccion, BitacoraModulo, BitacoraResultado
 from ..models.bitacora import Bitacora
 from ..serializers.bitacora_serializer import BitacoraSerializer
 from ..permissions.bitacora_permissions import PuedeVerBitacora
+from ..services.bitacora_register_service import BitacoraService
+
+
+def _registrar_bitacora_seguro(func, *args, **kwargs):
+    try:
+        func(*args, **kwargs)
+    except Exception:
+        pass
 
 class BitacoraPagination(PageNumberPagination):
     page_size = 10  
@@ -40,6 +49,19 @@ class BitacoraListView(generics.ListAPIView):
     ]
     ordering = ["-fecha_hora"]
 
+    def get(self, request, *args, **kwargs):
+        _registrar_bitacora_seguro(
+            BitacoraService.registrar_evento,
+            accion=BitacoraAccion.VISUALIZAR,
+            descripcion="Consulta de listado de bitácora.",
+            usuario=request.user,
+            request=request,
+            modulo=BitacoraModulo.BITACORA,
+            entidad_tipo="Bitacora",
+            resultado=BitacoraResultado.EXITO,
+        )
+        return super().get(request, *args, **kwargs)
+
 
 class BitacoraDetailView(generics.RetrieveAPIView):
     """API de solo lectura para consultar el detalle de un evento."""
@@ -48,3 +70,17 @@ class BitacoraDetailView(generics.RetrieveAPIView):
     serializer_class = BitacoraSerializer
     permission_classes = [PuedeVerBitacora]
     lookup_field = "pk"
+
+    def get(self, request, *args, **kwargs):
+        _registrar_bitacora_seguro(
+            BitacoraService.registrar_evento,
+            accion=BitacoraAccion.VISUALIZAR,
+            descripcion="Consulta de detalle de evento de bitácora.",
+            usuario=request.user,
+            request=request,
+            modulo=BitacoraModulo.BITACORA,
+            entidad_tipo="Bitacora",
+            entidad_id=kwargs.get("pk", ""),
+            resultado=BitacoraResultado.EXITO,
+        )
+        return super().get(request, *args, **kwargs)

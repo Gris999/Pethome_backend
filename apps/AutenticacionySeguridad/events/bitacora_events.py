@@ -32,6 +32,12 @@ class BitacoraModulo(models.TextChoices):
     ROLES = "roles", "Roles"
     PERMISOS = "permisos", "Permisos"
     BITACORA = "bitacora", "Bitácora"
+    CLIENTES = "clientes", "Clientes"
+    MASCOTAS = "mascotas", "Mascotas"
+    CATALOGOS = "catalogos", "Catálogos"
+    SERVICIOS = "servicios", "Servicios"
+    PRECIOS = "precios", "Precios"
+    CITAS = "citas", "Citas"
     SISTEMA = "sistema", "Sistema"
 
 
