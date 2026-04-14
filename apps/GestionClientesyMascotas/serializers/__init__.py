@@ -1,3 +1,6 @@
 from .especie_serializer import EspecieSerializer
 from .raza_serializer import RazaSerializer
 from .mascota_serializer import MascotaSerializer
+from .tratamiento_serializer import TratamientoSerializer
+from .vacuna_aplicada_serializer import VacunaAplicadaSerializer
+from .historial_clinico_serializer import  HistorialClinicoSerializer
