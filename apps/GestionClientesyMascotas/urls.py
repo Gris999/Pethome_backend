@@ -7,7 +7,7 @@ from .views.cliente_view import ClienteDetailView, ClienteListCreateView, Client
 from .views.register_cliente_view import RegisterClienteView
 
 from .views.mascota_view import MascotaViewSet
-from .views.mascota_perfil_view import MascotaPerfilView, MascotaHistorialClinicoView, MascotaVacunasView, MascotasMeView
+from .views.mascota_perfil_view import MascotaPerfilView, MascotaHistorialClinicoView, MascotasMeView
 from .views.especie_view import EspecieListView
 from .views.raza_view import RazaListView
 from .views.usuario_view import UsuarioListView
@@ -29,7 +29,6 @@ urlpatterns = [
     path("mascotas/me/", MascotasMeView.as_view(), name="mascotas-me"),
     path("mascotas/<int:id_mascota>/perfil/", MascotaPerfilView.as_view(), name="mascota-perfil"),
     path("mascotas/<int:id_mascota>/historial-clinico/", MascotaHistorialClinicoView.as_view(), name="mascota-historial-clinico"),
-    path("mascotas/<int:id_mascota>/vacunas/", MascotaVacunasView.as_view(), name="mascota-vacunas"),
     path("", include(router.urls)),
 
     # CATÁLOGOS

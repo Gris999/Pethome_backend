@@ -1,6 +1,5 @@
 from rest_framework import serializers
-
-from apps.GestionClientesyMascotas.models.tratamiento import Tratamiento
+from apps.GestionarClinicaVeterinaria.models import Tratamiento
 
 
 class TratamientoSerializer(serializers.ModelSerializer):
@@ -8,11 +7,13 @@ class TratamientoSerializer(serializers.ModelSerializer):
         model = Tratamiento
         fields = [
             "id_tratamiento",
+            "consulta_clinica",
             "tipo",
             "descripcion",
             "fecha_ini",
             "fecha_fin",
             "observacion",
+            "estado_tratamiento",
             "estado",
             "fecha_creacion",
             "fecha_actualizacion",

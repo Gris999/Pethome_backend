@@ -1,32 +1,41 @@
 from django.db import models
 
-from .historial_clinico import HistorialClinico
-
 
 class Tratamiento(models.Model):
-    class EstadoChoices(models.TextChoices):
+    class TipoTratamiento(models.TextChoices):
+        MEDICAMENTO = "MEDICAMENTO", "Medicamento"
+        PROCEDIMIENTO = "PROCEDIMIENTO", "Procedimiento"
+        TERAPIA = "TERAPIA", "Terapia"
+        OTRO = "OTRO", "Otro"
+
+    class EstadoTratamiento(models.TextChoices):
         PENDIENTE = "PENDIENTE", "Pendiente"
         EN_CURSO = "EN_CURSO", "En curso"
         FINALIZADO = "FINALIZADO", "Finalizado"
         CANCELADO = "CANCELADO", "Cancelado"
 
     id_tratamiento = models.AutoField(primary_key=True)
-    historial_clinico = models.ForeignKey(
-        HistorialClinico,
+    consulta_clinica = models.ForeignKey(
+        "GestionarClinicaVeterinaria.ConsultaClinica",
+        db_column="id_consulta_clinica",
         on_delete=models.CASCADE,
-        db_column="id_historial_clinico",
         related_name="tratamientos",
     )
-    tipo = models.CharField(max_length=100)
-    descripcion = models.TextField(blank=True, null=True)
+    tipo = models.CharField(
+        max_length=30,
+        choices=TipoTratamiento.choices,
+        default=TipoTratamiento.OTRO,
+    )
+    descripcion = models.TextField()
     fecha_ini = models.DateField()
     fecha_fin = models.DateField(blank=True, null=True)
     observacion = models.TextField(blank=True, null=True)
-    estado = models.CharField(
+    estado_tratamiento = models.CharField(
         max_length=20,
-        choices=EstadoChoices.choices,
-        default=EstadoChoices.PENDIENTE,
+        choices=EstadoTratamiento.choices,
+        default=EstadoTratamiento.PENDIENTE,
     )
+    estado = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
@@ -36,4 +45,4 @@ class Tratamiento(models.Model):
         verbose_name_plural = "Tratamientos"
 
     def __str__(self):
-        return f"{self.tipo} - {self.historial_clinico.mascota.nombre}"
+        return f"Tratamiento #{self.id_tratamiento}"

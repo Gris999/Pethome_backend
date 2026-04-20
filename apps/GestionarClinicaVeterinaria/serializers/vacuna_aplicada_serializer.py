@@ -1,6 +1,5 @@
 from rest_framework import serializers
-
-from apps.GestionClientesyMascotas.models.vacuna_aplicada import VacunaAplicada
+from apps.GestionarClinicaVeterinaria.models import VacunaAplicada
 
 
 class VacunaAplicadaSerializer(serializers.ModelSerializer):
@@ -8,15 +7,16 @@ class VacunaAplicadaSerializer(serializers.ModelSerializer):
         model = VacunaAplicada
         fields = [
             "id_vacuna_aplicada",
+            "consulta_clinica",
             "nombre_vacuna",
             "dosis",
             "fecha_aplicada",
             "fecha_proxima",
             "observacion",
+            "lote",
+            "fabricante",
+            "estado_vacuna",
             "estado",
             "fecha_creacion",
         ]
-        read_only_fields = [
-            "id_vacuna_aplicada",
-            "fecha_creacion",
-        ]
+        read_only_fields = ["id_vacuna_aplicada", "fecha_creacion"]
