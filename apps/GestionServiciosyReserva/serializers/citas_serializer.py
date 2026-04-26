@@ -183,7 +183,7 @@ class CitaSerializer(serializers.ModelSerializer):
                     {"hora_inicio": "La hora fin debe ser mayor a la hora inicio"}
                 )
 
-            # 🔥 CLAVE: filtrar por modalidad (NO por servicio)
+            #  filtrar por modalidad 
             citas = Cita.objects.filter(
                 fecha_programada=fecha_programada,
                 modalidad=modalidad,
@@ -203,7 +203,7 @@ class CitaSerializer(serializers.ModelSerializer):
 
                 if inicio < fin_db and fin > inicio_db:
                     raise serializers.ValidationError({
-                        "hora_inicio": "Ya existe una cita en ese horario para esta modalidad"
+                         "Ya existe una cita en ese horario para esta modalidad"
                     })
 
         return data
@@ -225,7 +225,7 @@ class CitaEstadoUpdateSerializer(serializers.ModelSerializer):
 
         if estado == Cita.EstadoChoices.CANCELADA and not (motivo_cancelacion or "").strip():
             raise serializers.ValidationError(
-                {"motivo_cancelacion": "Debes indicar el motivo de cancelación."}
+                {"Debes indicar el motivo de cancelación."}
             )
 
         return data
