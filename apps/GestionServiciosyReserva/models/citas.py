@@ -57,6 +57,14 @@ class Cita(models.Model):
         default=EstadoChoices.PENDIENTE,
     )
     motivo_cancelacion = models.TextField(blank=True, null=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="citas",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "cita"

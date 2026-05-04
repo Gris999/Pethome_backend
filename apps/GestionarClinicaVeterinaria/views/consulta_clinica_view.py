@@ -12,9 +12,11 @@ class ConsultaClinicaListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         id_historial = self.kwargs["id_historial_clinico"]
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
         return (
             ConsultaClinica.objects.filter(
                 historial_clinico_id=id_historial,
+                veterinaria_id=vet_id,
                 estado=True,
             )
             .select_related(
@@ -36,12 +38,17 @@ class ConsultaClinicaListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         id_historial = self.kwargs["id_historial_clinico"]
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
         historial = get_object_or_404(
             HistorialClinico,
             pk=id_historial,
+            mascota__veterinaria_id=vet_id,
             estado=True,
         )
-        serializer.save(historial_clinico=historial)
+        serializer.save(
+            historial_clinico=historial,
+            veterinaria_id=vet_id,
+        )
 
 
 class ConsultaClinicaDetailView(generics.RetrieveUpdateAPIView):
@@ -50,8 +57,12 @@ class ConsultaClinicaDetailView(generics.RetrieveUpdateAPIView):
     lookup_url_kwarg = "id_consulta_clinica"
 
     def get_queryset(self):
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
         return (
-            ConsultaClinica.objects.filter(estado=True)
+            ConsultaClinica.objects.filter(
+                estado=True,
+                veterinaria_id=vet_id,
+            )
             .select_related(
                 "historial_clinico",
                 "historial_clinico__mascota",

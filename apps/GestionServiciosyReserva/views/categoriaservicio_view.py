@@ -21,8 +21,11 @@ def _registrar_bitacora_seguro(func, *args, **kwargs):
 
 
 class CategoriaServicioListCreateView(APIView):
+    def _vet_id(self, request):
+        return getattr(request.user, "veterinaria_id", None)
+
     def get(self, request):
-        categorias = CategoriaServicio.objects.all()
+        categorias = CategoriaServicio.objects.filter(veterinaria_id=self._vet_id(request))
         serializer = CategoriaServicioSerializer(categorias, many=True)
 
         _registrar_bitacora_seguro(
@@ -42,7 +45,7 @@ class CategoriaServicioListCreateView(APIView):
     def post(self, request):
         serializer = CategoriaServicioSerializer(data=request.data)
         if serializer.is_valid():
-            categoria = serializer.save()
+            categoria = serializer.save(veterinaria_id=self._vet_id(request))
 
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -74,14 +77,17 @@ class CategoriaServicioListCreateView(APIView):
 
 
 class CategoriaServicioDetailView(APIView):
-    def get_object(self, pk):
+    def _vet_id(self, request):
+        return getattr(request.user, "veterinaria_id", None)
+
+    def get_object(self, request, pk):
         try:
-            return CategoriaServicio.objects.get(pk=pk)
+            return CategoriaServicio.objects.get(pk=pk, veterinaria_id=self._vet_id(request))
         except CategoriaServicio.DoesNotExist:
             return None
 
     def get(self, request, pk):
-        categoria = self.get_object(pk)
+        categoria = self.get_object(request, pk)
         if not categoria:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -115,7 +121,7 @@ class CategoriaServicioDetailView(APIView):
         return Response(serializer.data)
 
     def put(self, request, pk):
-        categoria = self.get_object(pk)
+        categoria = self.get_object(request, pk)
         if not categoria:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -134,7 +140,7 @@ class CategoriaServicioDetailView(APIView):
             )
         serializer = CategoriaServicioSerializer(categoria, data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(veterinaria_id=self._vet_id(request))
 
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -165,7 +171,7 @@ class CategoriaServicioDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        categoria = self.get_object(pk)
+        categoria = self.get_object(request, pk)
         if not categoria:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,

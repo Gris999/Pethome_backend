@@ -32,6 +32,14 @@ class Mascota(models.Model):
         null=True,
         blank=True,
     )
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="mascotas",
+        null=False,
+        blank=False,
+    )
 
     nombre = models.CharField(max_length=100)
     color = models.CharField(max_length=100, null=True, blank=True)

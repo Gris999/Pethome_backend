@@ -24,12 +24,15 @@ class MascotaViewSet(viewsets.ModelViewSet):
     serializer_class = MascotaSerializer
     permission_classes = [IsAuthenticated]
 
+    def _vet_id(self):
+        return getattr(self.request.user, "veterinaria_id", None)
+
     def get_queryset(self):
         queryset = Mascota.objects.select_related(
             "usuario",
             "especie",
             "raza"
-        ).all().order_by("-id_mascota")
+        ).filter(veterinaria_id=self._vet_id()).order_by("-id_mascota")
 
         nombre = self.request.query_params.get("nombre")
         especie_id = self.request.query_params.get("especie_id")
@@ -133,6 +136,9 @@ class MascotaViewSet(viewsets.ModelViewSet):
 
         headers = self.get_success_headers(data)
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        serializer.save(veterinaria_id=self._vet_id())
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)

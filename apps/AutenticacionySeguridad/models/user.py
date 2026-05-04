@@ -14,6 +14,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_column="id_rol",
         related_name="usuarios",
     )
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        on_delete=models.PROTECT,
+        db_column="id_veterinaria",
+        related_name="usuarios",
+        null=False,
+        blank=False,
+    )
 
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)

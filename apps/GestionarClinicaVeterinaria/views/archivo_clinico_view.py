@@ -15,9 +15,11 @@ class ArchivoClinicoCreateView(generics.CreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def create(self, request, *args, **kwargs):
+        vet_id = getattr(request.user, "veterinaria_id", None)
         consulta = get_object_or_404(
             ConsultaClinica,
-            pk=kwargs["id_consulta_clinica"]
+            pk=kwargs["id_consulta_clinica"],
+            veterinaria_id=vet_id,
         )
 
         data = request.data.copy()
@@ -37,8 +39,13 @@ class ArchivoClinicoUpdateView(generics.RetrieveUpdateAPIView):
     serializer_class = ArchivoClinicoSerializer
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
-    queryset = ArchivoClinico.objects.all()
     lookup_field = "id_archivo_clinico"
+
+    def get_queryset(self):
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
+        return ArchivoClinico.objects.filter(
+            consulta_clinica__veterinaria_id=vet_id
+        )
 
     def patch(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)

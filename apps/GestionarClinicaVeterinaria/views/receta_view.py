@@ -13,18 +13,22 @@ class RecetaPorConsultaView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id_consulta_clinica):
+        vet_id = getattr(request.user, "veterinaria_id", None)
         receta = get_object_or_404(
             Receta.objects.select_related("consulta_clinica").prefetch_related("detalles"),
             consulta_clinica_id=id_consulta_clinica,
+            consulta_clinica__veterinaria_id=vet_id,
             estado=True,
         )
         serializer = RecetaSerializer(receta, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, id_consulta_clinica):
+        vet_id = getattr(request.user, "veterinaria_id", None)
         consulta = get_object_or_404(
             ConsultaClinica,
             pk=id_consulta_clinica,
+            veterinaria_id=vet_id,
             estado=True,
         )
 
@@ -47,8 +51,10 @@ class RecetaDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_url_kwarg = "id_receta"
 
     def get_queryset(self):
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
         return Receta.objects.filter(
-            estado=True
+            estado=True,
+            consulta_clinica__veterinaria_id=vet_id,
         ).select_related("consulta_clinica").prefetch_related("detalles")
 
     def perform_destroy(self, instance):

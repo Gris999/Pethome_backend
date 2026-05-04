@@ -13,8 +13,12 @@ class HistorialClinicoListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
         return (
-            HistorialClinico.objects.filter(estado=True)
+            HistorialClinico.objects.filter(
+                estado=True,
+                mascota__veterinaria_id=vet_id,
+            )
             .select_related(
                 "mascota",
                 "mascota__usuario",
@@ -40,6 +44,7 @@ class HistorialClinicoPorMascotaView(generics.RetrieveAPIView):
 
     def get_object(self):
         id_mascota = self.kwargs["id_mascota"]
+        vet_id = getattr(self.request.user, "veterinaria_id", None)
 
         return get_object_or_404(
             HistorialClinico.objects.select_related(
@@ -57,5 +62,6 @@ class HistorialClinicoPorMascotaView(generics.RetrieveAPIView):
                 "consultas_clinicas__receta__detalles",
             ),
             mascota_id=id_mascota,
+            mascota__veterinaria_id=vet_id,
             estado=True,
         )

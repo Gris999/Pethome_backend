@@ -41,6 +41,7 @@ class CitaListCreateView(APIView):
                 "servicio",
                 "precio_servicio",
             )
+            .filter(veterinaria_id=getattr(request.user, "veterinaria_id", None))
             .order_by("-id_cita")
         )
 
@@ -70,7 +71,7 @@ class CitaListCreateView(APIView):
     def post(self, request):
         serializer = CitaSerializer(data=request.data, context={"request": request})
         if serializer.is_valid():
-            cita = serializer.save()
+            cita = serializer.save(veterinaria_id=getattr(request.user, "veterinaria_id", None))
 
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -115,7 +116,7 @@ class CitaDetailView(APIView):
                 "mascota",
                 "servicio",
                 "precio_servicio",
-            ).get(pk=pk)
+            ).get(pk=pk, veterinaria_id=getattr(request.user, "veterinaria_id", None))
         except Cita.DoesNotExist:
             return None
 
@@ -263,7 +264,7 @@ class CitaEstadoUpdateView(APIView):
 
     def get_object(self, request, pk):
         try:
-            cita = Cita.objects.get(pk=pk)
+            cita = Cita.objects.get(pk=pk, veterinaria_id=getattr(request.user, "veterinaria_id", None))
         except Cita.DoesNotExist:
             return None
 

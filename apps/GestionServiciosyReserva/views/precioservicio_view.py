@@ -21,8 +21,11 @@ def _registrar_bitacora_seguro(func, *args, **kwargs):
 
 
 class PrecioServicioListCreateView(APIView):
+    def _vet_id(self, request):
+        return getattr(request.user, "veterinaria_id", None)
+
     def get(self, request):
-        precios = PrecioServicio.objects.all()
+        precios = PrecioServicio.objects.filter(veterinaria_id=self._vet_id(request))
         serializer = PrecioServicioSerializer(precios, many=True)
 
         _registrar_bitacora_seguro(
@@ -42,7 +45,7 @@ class PrecioServicioListCreateView(APIView):
     def post(self, request):
         serializer = PrecioServicioSerializer(data=request.data)
         if serializer.is_valid():
-            precio = serializer.save()
+            precio = serializer.save(veterinaria_id=self._vet_id(request))
 
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -74,14 +77,17 @@ class PrecioServicioListCreateView(APIView):
 
 
 class PrecioServicioDetailView(APIView):
-    def get_object(self, pk):
+    def _vet_id(self, request):
+        return getattr(request.user, "veterinaria_id", None)
+
+    def get_object(self, request, pk):
         try:
-            return PrecioServicio.objects.get(pk=pk)
+            return PrecioServicio.objects.get(pk=pk, veterinaria_id=self._vet_id(request))
         except PrecioServicio.DoesNotExist:
             return None
 
     def get(self, request, pk):
-        precio = self.get_object(pk)
+        precio = self.get_object(request, pk)
         if not precio:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -115,7 +121,7 @@ class PrecioServicioDetailView(APIView):
         return Response(serializer.data)
 
     def put(self, request, pk):
-        precio = self.get_object(pk)
+        precio = self.get_object(request, pk)
         if not precio:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -134,7 +140,7 @@ class PrecioServicioDetailView(APIView):
             )
         serializer = PrecioServicioSerializer(precio, data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(veterinaria_id=self._vet_id(request))
 
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
@@ -165,7 +171,7 @@ class PrecioServicioDetailView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
-        precio = self.get_object(pk)
+        precio = self.get_object(request, pk)
         if not precio:
             _registrar_bitacora_seguro(
                 BitacoraService.registrar_evento,
