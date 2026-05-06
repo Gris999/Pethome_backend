@@ -1,48 +1,73 @@
-from django.db.models import Q
-from ..models.grupo_permiso_componente import GrupoPermisoComponente
 from ..models.componente_sistema import ComponenteSistema
+from ..models.grupo_permiso_componente import GrupoPermisoComponente
+
 
 class ComponenteSelector:
     @staticmethod
     def get_componentes_permitidos(user, plataforma="WEB"):
         """
-        Obtiene los componentes permitidos para un usuario en una plataforma específica.
-        Realiza la unión (OR lógico) de permisos si el usuario pertenece a varios grupos.
+        Obtiene componentes permitidos para un usuario en plataforma dada.
+        Combina permisos de varios grupos con OR logico.
         """
+        plataforma = str(plataforma or "WEB").upper()
+
         if user.is_superuser:
-            return ComponenteSistema.objects.filter(
-                estado=True,
-                plataforma__in=[plataforma, "AMBOS"]
+            componentes = ComponenteSistema.objects.filter(
+                estado=True, plataforma__in=[plataforma, "AMBOS"]
             ).order_by("orden")
+            return [
+                {
+                    "id_componente": c.id_componente,
+                    "codigo": c.codigo,
+                    "nombre": c.nombre,
+                    "tipo": c.tipo,
+                    "modulo": c.modulo,
+                    "ruta": c.ruta,
+                    "plataforma": c.plataforma,
+                    "id_padre": c.padre_id,
+                    "orden": c.orden,
+                    "permisos": {
+                        "ver": True,
+                        "crear": True,
+                        "editar": True,
+                        "eliminar": True,
+                        "exportar": True,
+                        "ejecutar": True,
+                    },
+                    "_obj": c,
+                }
+                for c in componentes
+            ]
 
-        # Obtener todos los permisos activos del usuario en sus grupos activos de su veterinaria
-        permisos_queryset = GrupoPermisoComponente.objects.filter(
-            estado=True,
-            id_grupo__estado=True,
-            id_grupo__id_veterinaria=user.id_veterinaria,
-            id_grupo__usuario_grupo__id_usuario=user,
-            id_grupo__usuario_grupo__estado=True,
-            id_componente__estado=True,
-            id_componente__plataforma__in=[plataforma, "AMBOS"],
-            puede_ver=True
-        ).select_related("id_componente")
+        permisos_queryset = (
+            GrupoPermisoComponente.objects.filter(
+                estado=True,
+                grupo__estado=True,
+                grupo__veterinaria_id=user.veterinaria_id,
+                grupo__usuarios_asignados__usuario=user,
+                grupo__usuarios_asignados__estado=True,
+                componente__estado=True,
+                componente__plataforma__in=[plataforma, "AMBOS"],
+                puede_ver=True,
+            )
+            .select_related("componente")
+            .distinct()
+        )
 
-        # Procesar permisos combinando grupos (Refinamiento: OR lógico)
         componentes_permitidos = {}
-        
         for p in permisos_queryset:
-            comp_id = p.id_componente_id
+            comp_id = p.componente_id
             if comp_id not in componentes_permitidos:
                 componentes_permitidos[comp_id] = {
-                    "id_componente": p.id_componente.id_componente,
-                    "codigo": p.id_componente.codigo,
-                    "nombre": p.id_componente.nombre,
-                    "tipo": p.id_componente.tipo,
-                    "modulo": p.id_componente.modulo,
-                    "ruta": p.id_componente.ruta,
-                    "plataforma": p.id_componente.plataforma,
-                    "id_padre": p.id_componente.id_padre_id,
-                    "orden": p.id_componente.orden,
+                    "id_componente": p.componente.id_componente,
+                    "codigo": p.componente.codigo,
+                    "nombre": p.componente.nombre,
+                    "tipo": p.componente.tipo,
+                    "modulo": p.componente.modulo,
+                    "ruta": p.componente.ruta,
+                    "plataforma": p.componente.plataforma,
+                    "id_padre": p.componente.padre_id,
+                    "orden": p.componente.orden,
                     "permisos": {
                         "ver": False,
                         "crear": False,
@@ -51,10 +76,9 @@ class ComponenteSelector:
                         "exportar": False,
                         "ejecutar": False,
                     },
-                    "_obj": p.id_componente # Guardamos referencia para la recursión posterior
+                    "_obj": p.componente,
                 }
-            
-            # Aplicar OR lógico
+
             permisos = componentes_permitidos[comp_id]["permisos"]
             permisos["ver"] = permisos["ver"] or p.puede_ver
             permisos["crear"] = permisos["crear"] or p.puede_crear
@@ -67,11 +91,10 @@ class ComponenteSelector:
 
     @staticmethod
     def get_veterinaria_context(user):
-        """Retorna el objeto veterinaria si existe y está activa."""
         if user.is_superuser:
             return None
-            
-        veterinaria = getattr(user, "id_veterinaria", None)
-        if veterinaria and veterinaria.estado:
+        veterinaria = getattr(user, "veterinaria", None)
+        if veterinaria and getattr(veterinaria, "estado", False):
             return veterinaria
         return None
+

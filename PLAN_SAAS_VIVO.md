@@ -470,6 +470,12 @@ No exponer:
     - suscripción válida,
     - plan con app móvil,
     - auto-registro habilitado.
+ - Estabilización posterior aplicada:
+   - Compatibilidad restaurada en respuesta de login (`access/refresh`, `tokens`, `user`, `context`).
+   - Contexto `/auth/me/` compatible con formato esperado por pruebas existentes.
+   - Alineación completa de nombres reales del modelo `User` (`role`, `veterinaria_id`).
+   - Corrección de árbol de componentes para relación recursiva `padre`.
+   - Corrección de acción de bitácora inválida en categorías de servicio.
 
 ---
 

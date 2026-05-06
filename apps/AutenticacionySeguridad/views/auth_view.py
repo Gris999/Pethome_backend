@@ -26,8 +26,10 @@ def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     for token in [refresh, refresh.access_token]:
         token["id_usuario"] = user.id_usuario
+        token["id_rol"] = user.role_id
         token["id_veterinaria"] = user.veterinaria_id
         token["is_superuser"] = user.is_superuser
+        token["permisos_base"] = []
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
@@ -69,6 +71,7 @@ class LoginView(TenantViewMixin, APIView):
         plataforma = serializer.validated_data.get("plataforma", "WEB")
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, plataforma)
+        auth_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.LOGIN_EXITOSO,
@@ -80,7 +83,13 @@ class LoginView(TenantViewMixin, APIView):
         )
 
         return Response(
-            {"access": tokens["access"], "refresh": tokens["refresh"], "context": context},
+            {
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "tokens": {"access": tokens["access"], "refresh": tokens["refresh"]},
+                "user": context.get("usuario", {}),
+                "context": context,
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -110,6 +119,7 @@ class MobileLoginView(TenantViewMixin, APIView):
         user = serializer.validated_data["user"]
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, "MOVIL")
+        auth_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.LOGIN_EXITOSO,
@@ -124,7 +134,13 @@ class MobileLoginView(TenantViewMixin, APIView):
         )
 
         return Response(
-            {"access": tokens["access"], "refresh": tokens["refresh"], "context": context},
+            {
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "tokens": {"access": tokens["access"], "refresh": tokens["refresh"]},
+                "user": context.get("usuario", {}),
+                "context": context,
+            },
             status=status.HTTP_200_OK,
         )
 
@@ -205,6 +221,7 @@ class MobileRegisterView(TenantViewMixin, APIView):
 
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, "MOVIL")
+        auth_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.CLIENTE_CREADO,
@@ -218,7 +235,13 @@ class MobileRegisterView(TenantViewMixin, APIView):
         )
 
         return Response(
-            {"access": tokens["access"], "refresh": tokens["refresh"], "context": context},
+            {
+                "access": tokens["access"],
+                "refresh": tokens["refresh"],
+                "tokens": {"access": tokens["access"], "refresh": tokens["refresh"]},
+                "user": context.get("usuario", {}),
+                "context": context,
+            },
             status=status.HTTP_201_CREATED,
         )
 
@@ -239,7 +262,18 @@ class MeView(TenantViewMixin, APIView):
             resultado=BitacoraResultado.EXITO,
             metadatos={"plataforma": plataforma},
         )
-        return Response(context, status=status.HTTP_200_OK)
+        user_data = context.get("usuario", {})
+        return Response(
+            {
+                "id_usuario": user_data.get("id_usuario"),
+                "correo": user_data.get("correo"),
+                "id_veterinaria": user_data.get("id_veterinaria"),
+                "rol": user_data.get("rol"),
+                "is_superuser": user_data.get("is_superuser"),
+                "context": context,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class ComponentesView(TenantViewMixin, APIView):
@@ -256,11 +290,19 @@ class LogoutView(TenantViewMixin, APIView):
 
     def post(self, request):
         refresh_token = request.data.get("refresh")
+        detail_message = "Sesion cerrada correctamente."
         if refresh_token:
             try:
                 RefreshToken(refresh_token).blacklist()
             except Exception:
-                pass
+                return Response(
+                    {"detail": "Token invalido o ya invalidado."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            detail_message = "No se recibió refresh; se cerró sesión de servidor."
+
+        auth_logout(request)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.LOGOUT_EXITOSO,
@@ -269,7 +311,7 @@ class LogoutView(TenantViewMixin, APIView):
             modulo=BitacoraModulo.AUTENTICACION,
             resultado=BitacoraResultado.EXITO,
         )
-        return Response({"detail": "Sesion cerrada correctamente."}, status=status.HTTP_200_OK)
+        return Response({"detail": detail_message}, status=status.HTTP_200_OK)
 
 
 class PublicVeterinariaListView(APIView):
@@ -335,4 +377,5 @@ class AuthRootView(APIView):
 
     def get(self, request):
         return Response({"message": "Pethome SaaS Auth API", "version": "1.1"})
-
+from django.contrib.auth import login as auth_login
+from django.contrib.auth import logout as auth_logout

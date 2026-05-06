@@ -37,8 +37,8 @@ class ComponenteTreeService:
             return
 
         # Si tiene padre, procesar el padre primero (para mantener orden topológico si se desea)
-        if obj.id_padre:
-            ComponenteTreeService._agregar_recursivo(obj.id_padre, mapa_datos, resultado, ids_incluidos)
+        if obj.padre:
+            ComponenteTreeService._agregar_recursivo(obj.padre, mapa_datos, resultado, ids_incluidos)
 
         if obj.id_componente in mapa_datos:
             # Si el componente ya tenía permisos específicos, usarlos
@@ -53,7 +53,7 @@ class ComponenteTreeService:
                 "modulo": obj.modulo,
                 "ruta": obj.ruta,
                 "plataforma": obj.plataforma,
-                "id_padre": obj.id_padre_id,
+                "id_padre": obj.padre_id,
                 "orden": obj.orden,
                 "permisos": {
                     "ver": True, "crear": False, "editar": False, 

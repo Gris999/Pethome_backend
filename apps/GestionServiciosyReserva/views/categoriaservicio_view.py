@@ -33,7 +33,7 @@ class CategoriaServicioListCreateView(TenantViewMixin, APIView):
         serializer = CategoriaServicioSerializer(categorias, many=True)
 
         self.registrar_bitacora(
-            accion=BitacoraAccion.CATEGORIA_SERVICIO_CONSULTADA,
+            accion=BitacoraAccion.CATEGORIA_SERVICIO_EDITADA,
             descripcion="Listado de categorías de servicio consultado.",
             modulo=BitacoraModulo.CATALOGOS,
             resultado=BitacoraResultado.EXITO,
@@ -96,7 +96,7 @@ class CategoriaServicioDetailView(TenantViewMixin, APIView):
 
         serializer = CategoriaServicioSerializer(categoria)
         self.registrar_bitacora(
-            accion="CATEGORIA_SERVICIO_CONSULTADA",
+            accion=BitacoraAccion.CATEGORIA_SERVICIO_EDITADA,
             descripcion="Detalle de categoría de servicio consultado.",
             modulo=BitacoraModulo.CATALOGOS,
             entidad_id=pk,

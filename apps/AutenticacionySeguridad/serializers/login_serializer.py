@@ -46,15 +46,6 @@ class LoginSerializer(serializers.Serializer):
                 {"detail": "Esta cuenta esta desactivada.", "code": "LOGIN_USUARIO_INACTIVO"}
             )
 
-        role_name = (user.role.nombre if getattr(user, "role_id", None) else "").upper()
-        if plataforma == "WEB" and role_name == "CLIENT":
-            raise serializers.ValidationError(
-                {
-                    "detail": "Los clientes deben iniciar sesion desde el flujo movil.",
-                    "code": "LOGIN_CLIENTE_EN_WEB_NO_PERMITIDO",
-                }
-            )
-
         if not user.is_superuser:
             veterinaria_id = getattr(user, "veterinaria_id", None)
             if not veterinaria_id:
@@ -173,4 +164,3 @@ class MobileRegisterSerializer(serializers.Serializer):
     correo = serializers.EmailField()
     password = serializers.CharField(write_only=True, min_length=8)
     telefono = serializers.CharField(max_length=20, required=False, allow_blank=True)
-

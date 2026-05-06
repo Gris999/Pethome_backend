@@ -21,6 +21,7 @@ class AuthContextService:
         """
         Construye el JSON completo con el contexto del usuario, tenant y permisos.
         """
+        plataforma = str(plataforma or "WEB").upper()
         veterinaria = ComponenteSelector.get_veterinaria_context(user)
         plan = PlanSelector.get_active_plan(veterinaria)
         
@@ -32,8 +33,8 @@ class AuthContextService:
             "usuario": {
                 "id_usuario": user.id_usuario,
                 "correo": user.correo,
-                "rol": user.id_rol.nombre if user.id_rol else "Sin Rol",
-                "id_veterinaria": user.id_veterinaria_id,
+                "rol": user.role.nombre if user.role_id else "Sin Rol",
+                "id_veterinaria": user.veterinaria_id,
                 "is_superuser": user.is_superuser,
             },
             "veterinaria": {
