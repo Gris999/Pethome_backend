@@ -401,9 +401,9 @@ No exponer:
 
 ### Fase B — Seeds y plantillas
 
-- [ ] Seed global de `componente_sistema` (WEB/MOVIL/SAAS).
-- [ ] Seed de grupos base por veterinaria.
-- [ ] Seed de permisos base por grupo.
+- [x] Seed global de `componente_sistema` (WEB/MOVIL/SAAS).
+- [x] Seed de grupos base por veterinaria.
+- [x] Seed de permisos base por grupo.
 
 ### Fase C — Flujos SaaS
 
@@ -446,6 +446,15 @@ No exponer:
   - `veterinaria.permite_auto_registro_clientes` agregado.
   - `grupo_usuario.es_base` y `grupo_usuario.rol_base` agregados.
   - Estado de migraciones limpio (`makemigrations --check` sin cambios).
+- Fase B aplicada:
+  - Servicio de seed SaaS base implementado:
+    - catálogo global de componentes,
+    - grupos base por veterinaria,
+    - permisos base por rol/grupo,
+    - asignación opcional de usuarios existentes al grupo base.
+  - Comandos de gestión implementados:
+    - `seed_componentes`
+    - `seed_grupos_permisos_base`
 
 ---
 
