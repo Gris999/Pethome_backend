@@ -1,9 +1,13 @@
 from django.urls import path
 from apps.AutenticacionySeguridad.views.auth_view import (
     LoginView,
+    MobileLoginView,
+    MobileRegisterView,
     LogoutView,
     MeView,
+    ComponentesView,
     AuthRootView,
+    PublicVeterinariaListView,
     PublicVeterinariaView,
 )
 from .views.perfil_views import (
@@ -30,8 +34,12 @@ from .views.usuario_grupo_view import (
 urlpatterns = [
     path("", AuthRootView.as_view(), name="auth-root"),
     path("login/", LoginView.as_view(), name="auth-login"),
+    path("mobile/login/", MobileLoginView.as_view(), name="auth-mobile-login"),
+    path("mobile/register/", MobileRegisterView.as_view(), name="auth-mobile-register"),
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("me/", MeView.as_view(), name="auth-me"),
+    path("componentes/", ComponentesView.as_view(), name="auth-componentes"),
+    path("public/veterinarias/", PublicVeterinariaListView.as_view(), name="public-veterinaria-list"),
     path("public/veterinarias/<slug:slug>/", PublicVeterinariaView.as_view(), name="public-veterinaria-detail"),
 
     path('usuarios/', UsuarioListCreateView.as_view(), name='usuario-list-create'),

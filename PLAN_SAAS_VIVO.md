@@ -408,16 +408,16 @@ No exponer:
 ### Fase C — Flujos SaaS
 
 - [ ] Endpoint creación de veterinaria por superadmin (transaccional).
-- [ ] Login web interno consolidado con contexto.
-- [ ] `GET /api/auth/me/` con reconstrucción de contexto.
-- [ ] `GET /api/auth/componentes/` por plataforma.
+- [x] Login web interno consolidado con contexto.
+- [x] `GET /api/auth/me/` con reconstrucción de contexto.
+- [x] `GET /api/auth/componentes/` por plataforma.
 
 ### Fase D — Móvil cliente
 
-- [ ] `GET /api/public/veterinarias/`.
-- [ ] `GET /api/public/veterinarias/{slug}/`.
-- [ ] `POST /api/auth/mobile/register/`.
-- [ ] `POST /api/auth/mobile/login/`.
+- [x] `GET /api/public/veterinarias/`.
+- [x] `GET /api/public/veterinarias/{slug}/`.
+- [x] `POST /api/auth/mobile/register/`.
+- [x] `POST /api/auth/mobile/login/`.
 
 ### Fase E — Seguridad y auditoría
 
@@ -455,6 +455,21 @@ No exponer:
   - Comandos de gestión implementados:
     - `seed_componentes`
     - `seed_grupos_permisos_base`
+- Fase C/D aplicada parcialmente:
+  - Login web mantiene respuesta con contexto SaaS.
+  - Endpoint `GET /api/auth/componentes/` implementado.
+  - Endpoints públicos de veterinarias implementados:
+    - `GET /api/public/veterinarias/`
+    - `GET /api/public/veterinarias/{slug}/`
+  - Flujo móvil implementado:
+    - `POST /api/auth/mobile/register/`
+    - `POST /api/auth/mobile/login/`
+  - Validaciones incluidas en móvil:
+    - `slug_veterinaria`,
+    - veterinaria activa,
+    - suscripción válida,
+    - plan con app móvil,
+    - auto-registro habilitado.
 
 ---
 
