@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiParameter
 
 from apps.AutenticacionySeguridad.mixins.tenant_mixins import TenantViewMixin
@@ -29,11 +30,51 @@ class DisponibilidadAgendaView(TenantViewMixin, APIView):
 
         vet_id = self.get_tenant_id()
         
-        # 1. Obtener citas ocupadas para ese día
-        citas_ocupadas = CitaSelector.get_citas_by_fecha(vet_id, fecha)
+        # 1. Obtener citas ocupadas para ese día (solo activas)
+        citas_ocupadas = CitaSelector.get_citas_by_fecha(vet_id, fecha).filter(
+            estado__in=["PENDIENTE", "CONFIRMADA", "COMPLETADA"]
+        )
         serializer = CitaSerializer(citas_ocupadas, many=True)
 
-        # 2. Registrar en bitácora
+        # 2. Generar slots de disponibilidad (Ej: cada 30 min entre 08:00 y 18:00)
+        from datetime import datetime, time, timedelta
+        
+        HORA_APERTURA = 8
+        HORA_CIERRE = 18
+        SLOT_MINUTOS = 30
+        
+        slots_disponibles = []
+        current_dt = datetime.combine(datetime.strptime(fecha, "%Y-%m-%d").date(), time(HORA_APERTURA, 0))
+        end_dt = datetime.combine(current_dt.date(), time(HORA_CIERRE, 0))
+        
+        # Validar si es hoy para no mostrar horas pasadas
+        now = timezone.localtime()
+        
+        while current_dt < end_dt:
+            slot_inicio = current_dt.time()
+            slot_fin = (current_dt + timedelta(minutes=SLOT_MINUTOS)).time()
+            
+            # No permitir horarios pasados
+            if current_dt.date() < now.date() or (current_dt.date() == now.date() and current_dt.time() < now.time()):
+                current_dt += timedelta(minutes=SLOT_MINUTOS)
+                continue
+
+            # Verificar si el slot choca con alguna cita
+            esta_ocupado = False
+            for cita in citas_ocupadas:
+                if slot_inicio < cita.hora_fin and slot_fin > cita.hora_inicio:
+                    esta_ocupado = True
+                    break
+            
+            if not esta_ocupado:
+                slots_disponibles.append({
+                    "inicio": slot_inicio.strftime("%H:%M"),
+                    "fin": slot_fin.strftime("%H:%M")
+                })
+            
+            current_dt += timedelta(minutes=SLOT_MINUTOS)
+
+        # 3. Registrar en bitácora
         self.registrar_bitacora(
             accion=BitacoraAccion.DISPONIBILIDAD_CONSULTADA,
             descripcion=f"Consulta de horarios disponibles para la fecha {fecha}.",
@@ -41,16 +82,16 @@ class DisponibilidadAgendaView(TenantViewMixin, APIView):
             resultado=BitacoraResultado.EXITO,
             metadatos={
                 "fecha_programada": fecha,
-                "citas_ocupadas_count": citas_ocupadas.count()
+                "citas_ocupadas_count": citas_ocupadas.count(),
+                "slots_disponibles_count": len(slots_disponibles)
             }
         )
 
-        # Retornamos las citas ocupadas. El frontend se encargará de mostrar los huecos libres
-        # o podemos implementar una lógica de "slots" si el negocio tiene horarios fijos.
         return Response({
             "fecha": fecha,
             "citas_ocupadas": serializer.data,
-            "mensaje": "Se muestran los horarios ocupados. Los espacios restantes están disponibles."
+            "horarios_disponibles": slots_disponibles,
+            "mensaje": "Se muestran horarios ocupados y slots disponibles."
         })
 
 class ValidarConflictoView(TenantViewMixin, APIView):

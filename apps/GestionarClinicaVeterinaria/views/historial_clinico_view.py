@@ -23,7 +23,7 @@ class HistorialClinicoListCreateView(TenantViewMixin, APIView):
     )
     def get(self, request):
         vet_id = self.get_tenant_id()
-        historiales = HistorialClinicoSelector.get_historiales_by_tenant(vet_id)
+        historiales = HistorialClinicoSelector.get_historiales_by_tenant(vet_id, user=request.user)
         serializer = HistorialClinicoSerializer(historiales, many=True)
         
         self.registrar_bitacora(
