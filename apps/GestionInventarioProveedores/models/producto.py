@@ -22,6 +22,14 @@ class Producto(models.Model):
     precio_venta = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     unidad_medida = models.CharField(max_length=50, blank=True, null=True)
     estado = models.BooleanField(default=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="productos",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "producto"
