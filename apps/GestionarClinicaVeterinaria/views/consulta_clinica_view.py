@@ -36,7 +36,7 @@ class ConsultaClinicaListCreateView(TenantViewMixin, APIView):
             return Response({"error": "Historial no encontrado o sin acceso."}, status=status.HTTP_404_NOT_FOUND)
 
         consultas = ConsultaClinicaSelector.get_consultas_by_historial(historial.pk, vet_id)
-        serializer = ConsultaClinicaSerializer(consultas, many=True)
+        serializer = ConsultaClinicaSerializer(consultas, many=True, context={'tenant_id': vet_id})
         
         self.registrar_bitacora(
             accion=BitacoraAccion.CONSULTA_CLINICA_CONSULTADA,
@@ -55,7 +55,7 @@ class ConsultaClinicaListCreateView(TenantViewMixin, APIView):
     )
     def post(self, request, id_historial_clinico):
         vet_id = self.get_tenant_id()
-        serializer = ConsultaClinicaSerializer(data=request.data)
+        serializer = ConsultaClinicaSerializer(data=request.data, context={'tenant_id': vet_id})
         
         if not serializer.is_valid():
              return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -78,8 +78,9 @@ class ConsultaClinicaListCreateView(TenantViewMixin, APIView):
             consulta = ClinicaService.registrar_consulta(
                 veterinaria_id=vet_id,
                 mascota_id=historial.mascota_id,
-                veterinario_id=request.user.id_usuario,
+                veterinario_id=serializer.validated_data.get("usuario_veterinario").id_usuario,
                 motivo=serializer.validated_data.get("motivo_consulta"),
+                fecha_consulta=serializer.validated_data.get("fecha_consulta"),
                 diagnostico=serializer.validated_data.get("diagnostico"),
                 observaciones=serializer.validated_data.get("observaciones"),
                 cita_id=cita_id,
@@ -120,5 +121,5 @@ class ConsultaClinicaDetailView(TenantViewMixin, APIView):
         if not consulta:
             return Response({"error": "Consulta no encontrada o sin acceso."}, status=status.HTTP_404_NOT_FOUND)
             
-        serializer = ConsultaClinicaSerializer(consulta)
+        serializer = ConsultaClinicaSerializer(consulta, context={'tenant_id': vet_id})
         return Response(serializer.data)
