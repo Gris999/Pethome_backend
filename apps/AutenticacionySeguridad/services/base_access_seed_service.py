@@ -167,6 +167,8 @@ class BaseAccessSeedService:
         "MOVIL_NOTIFICACIONES",
         "CLI_CLIENTES",
         "CLI_MASCOTAS",
+        "CLI_CATALOGOS",
+        "CLI_HISTORIALES",
         "SERV_CITAS",
         "SERV_SERVICIOS",
         "SERV_PRECIOS",
@@ -272,6 +274,10 @@ class BaseAccessSeedService:
                     "puede_ejecutar": allowed and component.tipo in {"ACCION", "BOTON"},
                     "estado": True,
                 }
+                # Cliente puede editar su propio perfil móvil (endpoint /clientes/me/),
+                # sin abrir edición administrativa de otros clientes.
+                if (group.rol_base or "").upper() == cls.ROLE_CLIENT and code == "MOVIL_MI_PERFIL":
+                    defaults["puede_editar"] = True
                 _, was_created = GrupoPermisoComponente.objects.update_or_create(
                     grupo=group,
                     componente=component,
