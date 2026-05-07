@@ -286,7 +286,7 @@ class ClienteDetailView(TenantViewMixin, APIView):
 
 class ClienteMeView(TenantViewMixin, APIView):
     permission_classes = [IsAuthenticated, HasComponentPermission]
-    rbac_component = "CLI_CLIENTES"
+    rbac_component = "MOVIL_MI_PERFIL"
 
     def get_object(self, request):
         return get_object_or_404(

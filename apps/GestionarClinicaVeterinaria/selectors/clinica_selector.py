@@ -1,3 +1,4 @@
+from apps.AutenticacionySeguridad.models import Rol
 from ..models.historial_clinico import HistorialClinico
 from ..models.consulta_clinica import ConsultaClinica
 from ..models.receta import Receta
@@ -13,10 +14,15 @@ class HistorialClinicoSelector:
         ).select_related("mascota").first()
 
     @staticmethod
-    def get_historiales_by_tenant(veterinaria_id):
-        return HistorialClinico.objects.filter(
+    def get_historiales_by_tenant(veterinaria_id, user=None):
+        queryset = HistorialClinico.objects.filter(
             mascota__veterinaria_id=veterinaria_id
         ).select_related("mascota")
+
+        if user and hasattr(user, "role") and user.role.nombre == Rol.RolName.CLIENT:
+            queryset = queryset.filter(mascota__usuario=user)
+            
+        return queryset
 
 class ConsultaClinicaSelector:
     @staticmethod

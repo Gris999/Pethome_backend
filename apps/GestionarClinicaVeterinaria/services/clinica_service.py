@@ -12,7 +12,7 @@ from ..models.archivo_clinico import ArchivoClinico
 class ClinicaService:
     @staticmethod
     @transaction.atomic
-    def registrar_consulta(*, veterinaria_id, mascota_id, veterinario_id, motivo, diagnostico=None, observaciones=None, cita_id=None, peso=None, temperatura=None, f_cardiaca=None, f_respiratoria=None):
+    def registrar_consulta(*, veterinaria_id, mascota_id, veterinario_id, motivo, fecha_consulta=None, diagnostico=None, observaciones=None, cita_id=None, peso=None, temperatura=None, f_cardiaca=None, f_respiratoria=None):
         """
         Registra una nueva consulta clínica, asegurando que exista el historial clínico de la mascota.
         """
@@ -30,7 +30,7 @@ class ClinicaService:
             motivo_consulta=motivo,
             diagnostico=diagnostico,
             observaciones=observaciones,
-            fecha_consulta=timezone.now(),
+            fecha_consulta=fecha_consulta or timezone.now(),
             peso=peso,
             temperatura=temperatura,
             frecuencia_cardiaca=f_cardiaca,

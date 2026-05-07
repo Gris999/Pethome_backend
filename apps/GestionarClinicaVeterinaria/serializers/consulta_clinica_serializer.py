@@ -17,11 +17,18 @@ class VeterinarioRelatedField(serializers.PrimaryKeyRelatedField):
 
 class ConsultaClinicaSerializer(serializers.ModelSerializer):
     usuario_veterinario = VeterinarioRelatedField(
-        queryset=User.objects.filter(
-            role__nombre=RoleEnum.VETERINARIAN.value,
-            is_active=True,
-        )
+        queryset=User.objects.all()
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if 'context' in kwargs and 'tenant_id' in kwargs['context']:
+            tenant_id = kwargs['context']['tenant_id']
+            self.fields['usuario_veterinario'].queryset = User.objects.filter(
+                veterinaria_id=tenant_id,
+                role__nombre=RoleEnum.VETERINARIAN.value,
+                is_active=True
+            )
 
     tratamientos = TratamientoSerializer(many=True, read_only=True)
     receta = RecetaSerializer(read_only=True)

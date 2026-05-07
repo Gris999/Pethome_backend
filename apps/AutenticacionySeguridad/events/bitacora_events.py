@@ -75,8 +75,18 @@ class BitacoraAccion(models.TextChoices):
     HISTORIAL_SERVICIOS_CONSULTADO = "HISTORIAL_SERVICIOS_CONSULTADO", "Historial de servicios consultado"
     AGENDA_CONSULTADA = "AGENDA_CONSULTADA", "Agenda consultada"
     DISPONIBILIDAD_CONSULTADA = "DISPONIBILIDAD_CONSULTADA", "Disponibilidad consultada"
+    HORARIO_DISPONIBLE_SELECCIONADO = "HORARIO_DISPONIBLE_SELECCIONADO", "Horario disponible seleccionado"
     CONFLICTO_HORARIO_DETECTADO = "CONFLICTO_HORARIO_DETECTADO", "Conflicto de horario detectado"
     CATALOGO_CONSULTADO = "CATALOGO_CONSULTADO", "Catálogo consultado"
+
+    # Bitácora Clínica CU-15
+    CONSULTA_CLINICA_EDITADA = "CONSULTA_CLINICA_EDITADA", "Consulta clínica editada"
+    TRATAMIENTO_REGISTRADO = "TRATAMIENTO_REGISTRADO", "Tratamiento registrado"
+    VACUNA_REGISTRADA = "VACUNA_REGISTRADA", "Vacuna registrada"
+    RECETA_REGISTRADA = "RECETA_REGISTRADA", "Receta registrada"
+    DETALLE_RECETA_REGISTRADO = "DETALLE_RECETA_REGISTRADO", "Detalle de receta registrado"
+    ARCHIVO_CLINICO_ADJUNTADO = "ARCHIVO_CLINICO_ADJUNTADO", "Archivo clínico adjuntado"
+    ACCESO_CLINICO_DENEGADO = "ACCESO_CLINICO_DENEGADO", "Acceso clínico denegado"
 
     # Acciones Genéricas (Legacy)
     CREAR = "CREAR", "Crear"
@@ -162,7 +172,17 @@ BITACORA_EVENTOS_DESCRIPCION = {
     
     BitacoraAccion.AGENDA_CONSULTADA: "{actor} consultó la agenda para el día {fecha}.",
     BitacoraAccion.DISPONIBILIDAD_CONSULTADA: "{actor} consultó disponibilidad para {fecha}.",
+    BitacoraAccion.HORARIO_DISPONIBLE_SELECCIONADO: "{actor} seleccionó el horario {hora} para {fecha}.",
     BitacoraAccion.CATALOGO_CONSULTADO: "{actor} consultó el catálogo de {entidad_tipo}.",
+
+    # Clínica CU-15
+    BitacoraAccion.CONSULTA_CLINICA_EDITADA: "{actor} actualizó la consulta clínica #{entidad_id}.",
+    BitacoraAccion.TRATAMIENTO_REGISTRADO: "{actor} registró un tratamiento para la consulta #{consulta_id}.",
+    BitacoraAccion.VACUNA_REGISTRADA: "{actor} registró una vacuna aplicada en la consulta #{consulta_id}.",
+    BitacoraAccion.RECETA_REGISTRADA: "{actor} emitió una receta médica para la consulta #{consulta_id}.",
+    BitacoraAccion.DETALLE_RECETA_REGISTRADO: "{actor} añadió un producto a la receta #{receta_id}.",
+    BitacoraAccion.ARCHIVO_CLINICO_ADJUNTADO: "{actor} adjuntó el archivo '{nombre}' al historial clínico.",
+    BitacoraAccion.ACCESO_CLINICO_DENEGADO: "CRÍTICO: Acceso denegado a información clínica de {entidad} para {actor}.",
 }
 
 
