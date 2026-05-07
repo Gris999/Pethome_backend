@@ -17,6 +17,14 @@ class Servicio(models.Model):
     disponible_domicilio = models.BooleanField(default=True)
 
     estado = models.BooleanField(default=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="servicios",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "servicios"

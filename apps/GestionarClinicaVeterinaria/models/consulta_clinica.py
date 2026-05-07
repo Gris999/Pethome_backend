@@ -42,6 +42,14 @@ class ConsultaClinica(models.Model):
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     estado = models.BooleanField(default=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="consultas_clinicas",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "consulta_clinica"

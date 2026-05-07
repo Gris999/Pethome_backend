@@ -1,47 +1,93 @@
 from rest_framework import serializers
+from typing import Any, Optional
 
 from ..models.bitacora import Bitacora
 
 
 class BitacoraSerializer(serializers.ModelSerializer):
-    usuario_id = serializers.IntegerField(source="usuario.id", read_only=True)
-    usuario_nombre = serializers.SerializerMethodField()
-    accion_display = serializers.CharField(source="get_accion_display", read_only=True)
-    resultado_display = serializers.CharField(source="get_resultado_display", read_only=True)
-    modulo_display = serializers.CharField(source="get_modulo_display", read_only=True)
+    id_veterinaria = serializers.IntegerField(source="veterinaria_id", read_only=True)
+    id_usuario = serializers.SerializerMethodField()
+    nombre_usuario = serializers.SerializerMethodField()
+    correo_usuario = serializers.SerializerMethodField()
+    accion = serializers.SerializerMethodField()
+    modulo = serializers.SerializerMethodField()
+    descripcion = serializers.SerializerMethodField()
+    ip = serializers.SerializerMethodField()
+    user_agent = serializers.SerializerMethodField()
+    resultado = serializers.SerializerMethodField()
+    entidad_tipo = serializers.SerializerMethodField()
+    entidad_id = serializers.SerializerMethodField()
+    metadatos = serializers.SerializerMethodField()
+    path = serializers.SerializerMethodField()
+    method = serializers.SerializerMethodField()
 
     class Meta:
         model = Bitacora
         fields = [
             "id_bitacora",
+            "id_veterinaria",
             "fecha_hora",
-            "usuario_id",
-            "usuario_nombre",
+            "id_usuario",
+            "nombre_usuario",
+            "correo_usuario",
             "accion",
-            "accion_display",
+            "modulo",
             "descripcion",
             "ip",
             "user_agent",
-            "modulo",
-            "modulo_display",
+            "resultado",
             "entidad_tipo",
             "entidad_id",
-            "resultado",
-            "resultado_display",
             "metadatos",
+            "path",
+            "method",
         ]
         read_only_fields = fields
 
-    def get_usuario_nombre(self, obj):
-        if not obj.usuario:
-            return "Sistema/Anónimo"
+    def _payload_value(self, obj, key: str, default: Any = "") -> Any:
+        payload = getattr(obj, "payload", None)
+        if isinstance(payload, dict):
+            return payload.get(key, default)
+        return default
 
-        correo = getattr(obj.usuario, "correo", "")
-        if correo:
-            return correo
+    def get_id_usuario(self, obj) -> Optional[int]:
+        return self._payload_value(obj, "id_usuario")
 
-        full_name = ""
-        if hasattr(obj.usuario, "get_full_name"):
-            full_name = obj.usuario.get_full_name()
+    def get_nombre_usuario(self, obj) -> str:
+        return self._payload_value(obj, "nombre_usuario", "")
 
-        return full_name or getattr(obj.usuario, "username", str(obj.usuario))
+    def get_correo_usuario(self, obj) -> str:
+        return self._payload_value(obj, "correo_usuario", "")
+
+    def get_accion(self, obj) -> str:
+        return self._payload_value(obj, "accion", "")
+
+    def get_modulo(self, obj) -> str:
+        return self._payload_value(obj, "modulo", "")
+
+    def get_descripcion(self, obj) -> str:
+        return self._payload_value(obj, "descripcion", "")
+
+    def get_ip(self, obj) -> str:
+        return self._payload_value(obj, "ip", "")
+
+    def get_user_agent(self, obj) -> str:
+        return self._payload_value(obj, "user_agent", "")
+
+    def get_resultado(self, obj) -> str:
+        return self._payload_value(obj, "resultado", "")
+
+    def get_entidad_tipo(self, obj) -> str:
+        return self._payload_value(obj, "entidad_tipo", "")
+
+    def get_entidad_id(self, obj) -> str:
+        return self._payload_value(obj, "entidad_id", "")
+
+    def get_metadatos(self, obj) -> Any:
+        return self._payload_value(obj, "metadatos", {})
+
+    def get_path(self, obj) -> str:
+        return self._payload_value(obj, "path", "")
+
+    def get_method(self, obj) -> str:
+        return self._payload_value(obj, "method", "")

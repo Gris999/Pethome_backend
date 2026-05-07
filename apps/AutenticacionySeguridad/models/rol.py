@@ -2,8 +2,10 @@ from django.db import models
 
 class Rol(models.Model):
     class RolName(models.TextChoices):
+        SUPERADMIN = "SUPERADMIN", "Superadministrador"
         ADMIN = "ADMIN", "Administrador"
         VETERINARIAN = "VETERINARIAN", "Veterinario"
+        RECEPCIONISTA = "RECEPCIONISTA", "Recepcionista"
         CLIENT = "CLIENT", "Cliente"
 
     id_rol = models.AutoField(primary_key=True)

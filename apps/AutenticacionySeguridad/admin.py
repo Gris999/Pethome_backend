@@ -7,20 +7,10 @@ class BitacoraAdmin(admin.ModelAdmin):
 	list_display = (
 		"id_bitacora",
 		"fecha_hora",
-		"usuario",
-		"accion",
-		"modulo",
-		"resultado",
-		"ip",
+		"veterinaria",
 	)
-	list_filter = ("accion", "modulo", "resultado", "fecha_hora")
-	search_fields = (
-		"descripcion",
-		"usuario__correo",
-		"entidad_tipo",
-		"entidad_id",
-		"ip",
-	)
+	list_filter = ("veterinaria", "fecha_hora")
+	search_fields = ("id_bitacora",)
 	ordering = ("-fecha_hora",)
 	readonly_fields = [field.name for field in Bitacora._meta.fields]
 

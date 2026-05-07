@@ -1,7 +1,6 @@
 from django.conf import settings
 from django.db import models
 
-from apps.GestionClientesyMascotas.models import Mascota
 from apps.GestionServiciosyReserva.models.precioservicio import PrecioServicio
 from apps.GestionServiciosyReserva.models.servicios import Servicio
 
@@ -25,7 +24,7 @@ class Cita(models.Model):
         related_name="citas",
     )
     mascota = models.ForeignKey(
-        Mascota,
+        "GestionClientesyMascotas.Mascota",
         on_delete=models.PROTECT,
         db_column="id_mascota",
         related_name="citas",
@@ -57,6 +56,14 @@ class Cita(models.Model):
         default=EstadoChoices.PENDIENTE,
     )
     motivo_cancelacion = models.TextField(blank=True, null=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="citas",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "cita"

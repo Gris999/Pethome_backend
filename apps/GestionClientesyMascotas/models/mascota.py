@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from .especie import Especie
-from .raza import Raza
+from apps.GestionServiciosyReserva.models.especie import Especie
+from apps.GestionServiciosyReserva.models.raza import Raza
 
 
 class Mascota(models.Model):
@@ -31,6 +31,14 @@ class Mascota(models.Model):
         related_name="mascotas",
         null=True,
         blank=True,
+    )
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="mascotas",
+        null=False,
+        blank=False,
     )
 
     nombre = models.CharField(max_length=100)

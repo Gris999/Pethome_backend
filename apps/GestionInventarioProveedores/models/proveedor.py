@@ -8,6 +8,14 @@ class Proveedor(models.Model):
     telefono = models.CharField(max_length=30, blank=True, null=True)
     ubicacion = models.TextField(blank=True, null=True)
     estado = models.BooleanField(default=True)
+    veterinaria = models.ForeignKey(
+        "AutenticacionySeguridad.Veterinaria",
+        db_column="id_veterinaria",
+        on_delete=models.PROTECT,
+        related_name="proveedores",
+        null=False,
+        blank=False,
+    )
 
     class Meta:
         db_table = "proveedor"

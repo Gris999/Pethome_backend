@@ -1,0 +1,80 @@
+from rest_framework.permissions import BasePermission
+
+from ..models import GrupoPermisoComponente, UsuarioGrupo
+
+
+class HasComponentPermission(BasePermission):
+    message = "No tienes permisos para realizar esta accion."
+
+    method_action_map = {
+        "GET": "puede_ver",
+        "HEAD": "puede_ver",
+        "OPTIONS": "puede_ver",
+        "POST": "puede_crear",
+        "PUT": "puede_editar",
+        "PATCH": "puede_editar",
+        "DELETE": "puede_eliminar",
+    }
+
+    def has_permission(self, request, view):
+        user = getattr(request, "user", None)
+        if not user or not user.is_authenticated:
+            return False
+
+        if getattr(user, "is_superuser", False):
+            return True
+
+        component = getattr(view, "rbac_component", None)
+        if not component:
+            return False
+
+        action_field = self.method_action_map.get(request.method)
+        if not action_field:
+            return False
+
+        tenant = getattr(request, "tenant", None)
+        tenant_id = getattr(tenant, "id", None)
+        if not tenant_id:
+            return False
+
+        grupos_ids = list(
+            UsuarioGrupo.objects.filter(
+                usuario=user,
+                estado=True,
+                grupo__estado=True,
+                grupo__veterinaria_id=tenant_id,
+            ).values_list("grupo_id", flat=True)
+        )
+
+        if not grupos_ids:
+            return False
+
+        perms = GrupoPermisoComponente.objects.filter(
+            grupo_id__in=grupos_ids,
+            componente__codigo=component,
+            estado=True,
+            grupo__estado=True,
+            componente__estado=True,
+        )
+
+        has_perm = perms.filter(**{action_field: True}).exists()
+
+        if not has_perm:
+            from ..services.bitacora_register_service import BitacoraService
+            from ..events.bitacora_events import BitacoraAccion, BitacoraModulo, BitacoraResultado
+            
+            BitacoraService.registrar_evento(
+                accion=BitacoraAccion.ACCESO_DENEGADO,
+                descripcion=f"Intento de acceso no autorizado al componente '{component}' ({request.method}).",
+                usuario=user,
+                request=request,
+                modulo=BitacoraModulo.SISTEMA,
+                resultado=BitacoraResultado.FALLO,
+                metadatos={
+                    "componente": component,
+                    "metodo": request.method,
+                    "path": request.path
+                }
+            )
+
+        return has_perm
