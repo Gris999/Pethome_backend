@@ -1,6 +1,8 @@
 from .intent_detector_service import IntentDetectorService
 from .chatbot_agendar_service import ChatbotAgendarService
 from .chatbot_response_builder import ChatbotResponseBuilder
+from .chatbot_context_query_service import ChatbotContextQueryService
+from .chatbot_info_service import ChatbotInfoService
 
 
 class ChatbotOrchestratorService:
@@ -8,6 +10,34 @@ class ChatbotOrchestratorService:
     def procesar_mensaje(*, user, veterinaria_id, mensaje, contexto=None):
         contexto = contexto or {}
         estado = contexto.get("estado")
+
+        if estado:
+            consulta = ChatbotContextQueryService.detectar_consulta_apoyo(mensaje)
+
+            if consulta == "SERVICIOS":
+                return ChatbotInfoService.responder_servicios(
+                    veterinaria_id=veterinaria_id,
+                    contexto=contexto,
+                )
+
+            if consulta == "MASCOTAS":
+                return ChatbotInfoService.responder_mascotas(
+                    user=user,
+                    veterinaria_id=veterinaria_id,
+                    contexto=contexto,
+                )
+
+            if consulta == "PRECIOS":
+                return ChatbotInfoService.responder_precios(
+                    veterinaria_id=veterinaria_id,
+                    mensaje=mensaje,
+                    contexto=contexto,
+                )
+
+            if consulta == "MODALIDADES":
+                return ChatbotInfoService.responder_modalidades(
+                    contexto=contexto,
+                )
 
         if estado == "ESPERANDO_DATOS_AGENDAMIENTO":
             return ChatbotAgendarService.continuar_datos_agendamiento(

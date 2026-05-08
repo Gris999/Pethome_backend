@@ -21,7 +21,7 @@ class ChatbotCitasView(TenantViewMixin, APIView):
         request=ChatbotCitasRequestSerializer,
         responses={
             200: OpenApiResponse(description="Respuesta del chatbot de citas."),
-            400: OpenApiResponse(description="Datos inválidos."),
+            400: OpenApiResponse(description="Datos invAlidos."),
         },
     )
     

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 
 from django.utils import timezone
 
@@ -18,6 +18,26 @@ from ...serializers.citas_serializer import CitaSerializer
 
 
 class ChatbotAgendarService:
+    @staticmethod
+    def _normalizar_direccion(direccion):
+        direccion_limpia = str(direccion or "").strip()
+        return direccion_limpia or None
+
+    @staticmethod
+    def _aplicar_reglas_direccion_por_modalidad(datos):
+        datos_finales = dict(datos or {})
+        modalidad = str(datos_finales.get("modalidad") or "").strip().upper()
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            datos_finales.get("direccion_cita")
+        )
+
+        if modalidad == "CLINICA":
+            datos_finales["direccion_cita"] = None
+        elif modalidad == "DOMICILIO":
+            datos_finales["direccion_cita"] = direccion_cita
+
+        return datos_finales
+
     @staticmethod
     def _enumerar_opciones(opciones):
         opciones_enumeradas = []
@@ -41,37 +61,187 @@ class ChatbotAgendarService:
         return "\n".join(lineas)
 
     @staticmethod
+    def _humanizar_faltantes(faltan):
+        etiquetas = {
+            "mascota_nombre": "nombre de la mascota",
+            "servicio_nombre": "servicio",
+            "fecha_programada": "fecha",
+            "hora_inicio": "hora",
+            "modalidad": "modalidad",
+            "direccion_cita": "dirección del domicilio",
+        }
+
+        faltan = list(faltan or [])
+        faltantes_humanos = [etiquetas.get(campo, campo) for campo in faltan]
+
+        if not faltantes_humanos:
+            return ""
+
+        if len(faltantes_humanos) == 1:
+            return faltantes_humanos[0]
+
+        if len(faltantes_humanos) == 2:
+            return f"{faltantes_humanos[0]} y {faltantes_humanos[1]}"
+
+        return f"{', '.join(faltantes_humanos[:-1])} y {faltantes_humanos[-1]}"
+
+    @staticmethod
     def _mensaje_faltantes_agendamiento(faltan):
-        faltan = set(faltan or [])
+        faltan_lista = list(faltan or [])
+        faltan = set(faltan_lista)
 
         if faltan == {"modalidad"}:
-            return "¿Deseas la cita en clínica o a domicilio?"
+            return (
+                "Para agendar la cita me falta la modalidad. "
+                "¿Deseas atención en clínica o a domicilio?"
+            )
+
+        if faltan == {"direccion_cita"}:
+            return (
+                "Para agendar la cita a domicilio me falta la dirección. "
+                "¿A qué dirección debemos acudir?"
+            )
 
         if faltan == {"mascota_nombre"}:
-            return "¿Para cuál mascota deseas agendar la cita?"
+            return (
+                "Para agendar la cita me falta el nombre de la mascota. "
+                "¿Para cuál mascota deseas agendar?"
+            )
 
         if faltan == {"servicio_nombre"}:
-            return "¿Qué servicio necesitas para la cita?"
+            return (
+                "Para agendar la cita me falta el servicio que necesitas. "
+                "¿Qué servicio deseas reservar?"
+            )
 
         if faltan == {"fecha_programada"}:
-            return "¿Para qué fecha deseas agendar la cita?"
+            return (
+                "Para agendar la cita me falta la fecha. "
+                "¿Para qué día deseas agendar?"
+            )
 
         if faltan == {"hora_inicio"}:
-            return "¿A qué hora deseas agendar la cita?"
-
-        if faltan == {"mascota_nombre", "servicio_nombre"}:
-            return "¿Para qué mascota y qué servicio deseas agendar?"
-
-        if faltan == {"servicio_nombre", "modalidad"}:
-            return "¿Qué servicio necesitas y será en clínica o a domicilio?"
-
-        if faltan == {"mascota_nombre", "modalidad"}:
-            return "¿Para qué mascota será la cita y deseas atención en clínica o a domicilio?"
+            return (
+                "Para agendar la cita me falta la hora. "
+                "¿A qué hora prefieres la cita?"
+            )
 
         if faltan == {"fecha_programada", "hora_inicio"}:
-            return "¿Qué fecha y hora prefieres para la cita?"
+            return (
+                "Para agendar la cita me faltan la fecha y la hora. "
+                "¿Qué día y a qué hora prefieres?"
+            )
 
-        return "Necesito algunos datos más para preparar la cita. Indícame los datos faltantes."
+        faltantes_humanos = ChatbotAgendarService._humanizar_faltantes(faltan_lista)
+        return (
+            f"Para agendar la cita me faltan estos datos: {faltantes_humanos}. "
+            "Indícame esos datos para continuar."
+        )
+
+    @staticmethod
+    def _mensaje_fecha_invalida_agendamiento(*, tipo, faltan):
+        faltan = list(faltan or [])
+
+        if tipo == "HORA_PASADA":
+            base = "No puedo agendar citas en horarios pasados. Indícame una hora futura"
+            campo_principal = "hora_inicio"
+        else:
+            base = "No puedo agendar citas en fechas pasadas. Indícame una fecha futura"
+            campo_principal = "fecha_programada"
+
+        faltantes_extra = [campo for campo in faltan if campo != campo_principal]
+
+        if not faltantes_extra:
+            return f"{base} para continuar."
+
+        if faltantes_extra == ["direccion_cita"]:
+            return f"{base} y la dirección del domicilio para continuar."
+
+        extras_humanos = ChatbotAgendarService._humanizar_faltantes(faltantes_extra)
+        return f"{base} y estos datos: {extras_humanos}, para continuar."
+
+    @staticmethod
+    def _validar_fecha_hora_agendamiento(interpretacion):
+        interpretacion = ChatbotAgendarService._recalcular_faltantes_agendamiento(
+            interpretacion
+        )
+        datos = interpretacion.get("datos", {}) or {}
+        faltan = list(interpretacion.get("faltan", []) or [])
+
+        modalidad = str(datos.get("modalidad") or "").strip().upper()
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            datos.get("direccion_cita")
+        )
+
+        if modalidad == "DOMICILIO" and not direccion_cita and "direccion_cita" not in faltan:
+            faltan.append("direccion_cita")
+
+        fecha_invalida = bool(datos.get("fecha_invalida"))
+        motivo_fecha_invalida = str(datos.get("motivo_fecha_invalida") or "")
+        motivo_norm = TextMatcher.normalize(motivo_fecha_invalida)
+
+        if fecha_invalida:
+            if "fecha_programada" not in faltan:
+                faltan.append("fecha_programada")
+            if not datos.get("hora_inicio") and "hora_inicio" not in faltan:
+                faltan.append("hora_inicio")
+
+            tipo = "HORA_PASADA" if "hora" in motivo_norm else "FECHA_PASADA"
+
+            return ChatbotResponseBuilder.needs_data(
+                estado="ESPERANDO_DATOS_AGENDAMIENTO",
+                respuesta=ChatbotAgendarService._mensaje_fecha_invalida_agendamiento(
+                    tipo=tipo,
+                    faltan=faltan,
+                ),
+                faltan=faltan,
+                data={
+                    "interpretacion": interpretacion,
+                },
+            )
+
+        fecha_programada = ChatbotTimeUtils.to_date(datos.get("fecha_programada"))
+        hora_inicio = ChatbotTimeUtils.to_time(datos.get("hora_inicio"))
+
+        if not fecha_programada:
+            return None
+
+        hoy = timezone.localdate()
+        ahora = timezone.localtime()
+
+        if fecha_programada < hoy:
+            if "fecha_programada" not in faltan:
+                faltan.append("fecha_programada")
+
+            return ChatbotResponseBuilder.needs_data(
+                estado="ESPERANDO_DATOS_AGENDAMIENTO",
+                respuesta=ChatbotAgendarService._mensaje_fecha_invalida_agendamiento(
+                    tipo="FECHA_PASADA",
+                    faltan=faltan,
+                ),
+                faltan=faltan,
+                data={
+                    "interpretacion": interpretacion,
+                },
+            )
+
+        if fecha_programada == hoy and hora_inicio and hora_inicio <= ahora.time():
+            if "hora_inicio" not in faltan:
+                faltan.append("hora_inicio")
+
+            return ChatbotResponseBuilder.needs_data(
+                estado="ESPERANDO_DATOS_AGENDAMIENTO",
+                respuesta=ChatbotAgendarService._mensaje_fecha_invalida_agendamiento(
+                    tipo="HORA_PASADA",
+                    faltan=faltan,
+                ),
+                faltan=faltan,
+                data={
+                    "interpretacion": interpretacion,
+                },
+            )
+
+        return None
 
     @staticmethod
     def _detectar_modalidad_desde_texto(mensaje):
@@ -120,7 +290,9 @@ class ChatbotAgendarService:
 
     @staticmethod
     def _recalcular_faltantes_agendamiento(interpretacion):
-        datos = interpretacion.get("datos", {}) or {}
+        datos = ChatbotAgendarService._aplicar_reglas_direccion_por_modalidad(
+            interpretacion.get("datos", {}) or {}
+        )
 
         faltan = []
 
@@ -138,7 +310,11 @@ class ChatbotAgendarService:
 
         if not datos.get("modalidad"):
             faltan.append("modalidad")
+        elif str(datos.get("modalidad") or "").strip().upper() == "DOMICILIO":
+            if not ChatbotAgendarService._normalizar_direccion(datos.get("direccion_cita")):
+                faltan.append("direccion_cita")
 
+        interpretacion["datos"] = datos
         interpretacion["faltan"] = faltan
         return interpretacion
 
@@ -152,6 +328,10 @@ class ChatbotAgendarService:
         for campo, valor in datos_nuevos.items():
             if valor not in [None, ""]:
                 datos_finales[campo] = valor
+
+        datos_finales = ChatbotAgendarService._aplicar_reglas_direccion_por_modalidad(
+            datos_finales
+        )
 
         interpretacion_final = dict(interpretacion_anterior)
         interpretacion_final["intencion"] = "AGENDAR_CITA"
@@ -177,6 +357,9 @@ class ChatbotAgendarService:
             if modalidad:
                 datos["modalidad"] = modalidad
 
+        if len(faltan) == 1 and "direccion_cita" in faltan and mensaje_limpio:
+            datos["direccion_cita"] = mensaje_limpio
+
         if len(faltan) == 1 and "mascota_nombre" in faltan and mensaje_limpio:
             datos["mascota_nombre"] = mensaje_limpio
 
@@ -184,7 +367,9 @@ class ChatbotAgendarService:
             datos["servicio_nombre"] = mensaje_limpio
 
         interpretacion_final["intencion"] = "AGENDAR_CITA"
-        interpretacion_final["datos"] = datos
+        interpretacion_final["datos"] = (
+            ChatbotAgendarService._aplicar_reglas_direccion_por_modalidad(datos)
+        )
         interpretacion_final["respuesta"] = "Verificaremos la información antes de confirmar la cita."
 
         return ChatbotAgendarService._recalcular_faltantes_agendamiento(
@@ -349,6 +534,22 @@ class ChatbotAgendarService:
         fecha_programada = datos.get("fecha_programada")
         hora_inicio = datos.get("hora_inicio")
         modalidad = str(datos.get("modalidad") or "").strip().upper()
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            datos.get("direccion_cita")
+        )
+
+        if modalidad == "CLINICA":
+            direccion_cita = None
+
+        if modalidad == "DOMICILIO" and not direccion_cita:
+            return ChatbotResponseBuilder.needs_data(
+                estado="ESPERANDO_DATOS_AGENDAMIENTO",
+                respuesta="¿A qué dirección debemos acudir para la cita a domicilio?",
+                faltan=["direccion_cita"],
+                data={
+                    "interpretacion": interpretacion,
+                },
+            )
 
         if modalidad == "DOMICILIO" and not servicio.disponible_domicilio:
             return ChatbotResponseBuilder.error(
@@ -432,8 +633,13 @@ class ChatbotAgendarService:
             "fecha_programada": fecha_programada,
             "hora_inicio": hora_inicio_normalizada,
             "modalidad": modalidad,
+            "direccion_cita": direccion_cita,
             "descripcion": "Cita preparada desde chatbot IA.",
         }
+
+        linea_direccion = ""
+        if modalidad == "DOMICILIO":
+            linea_direccion = f"Dirección: {direccion_cita}\n"
 
         return ChatbotResponseBuilder.needs_confirmation(
             estado="ESPERANDO_CONFIRMACION_CREAR_CITA",
@@ -444,6 +650,7 @@ class ChatbotAgendarService:
                 f"Fecha: {fecha_programada}\n"
                 f"Hora: {hora_inicio_normalizada}\n"
                 f"Modalidad: {modalidad}\n"
+                f"{linea_direccion}"
                 f"Precio: {precio.precio} Bs\n\n"
                 "¿Confirmas que deseas agendar esta cita? Responde sí o no."
             ),
@@ -469,6 +676,9 @@ class ChatbotAgendarService:
         fecha_programada = datos.get("fecha_programada")
         hora_inicio = datos.get("hora_inicio")
         modalidad = datos.get("modalidad")
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            datos.get("direccion_cita")
+        )
 
         faltan = []
 
@@ -486,6 +696,14 @@ class ChatbotAgendarService:
 
         if not modalidad:
             faltan.append("modalidad")
+        elif str(modalidad).strip().upper() == "DOMICILIO" and not direccion_cita:
+            faltan.append("direccion_cita")
+
+        validacion_fecha_hora = ChatbotAgendarService._validar_fecha_hora_agendamiento(
+            interpretacion
+        )
+        if validacion_fecha_hora:
+            return validacion_fecha_hora
 
         if faltan:
             return ChatbotResponseBuilder.needs_data(
@@ -738,6 +956,11 @@ class ChatbotAgendarService:
         mascota = data.get("mascota", {}) or {}
         servicio = data.get("servicio", {}) or {}
         precio = data.get("precio", {}) or {}
+        direccion_cita = payload.get("direccion_cita")
+
+        linea_direccion = ""
+        if str(payload.get("modalidad") or "").strip().upper() == "DOMICILIO":
+            linea_direccion = f"Dirección: {direccion_cita}\n"
 
         return ChatbotResponseBuilder.needs_confirmation(
             estado="ESPERANDO_CONFIRMACION_CREAR_CITA",
@@ -748,6 +971,7 @@ class ChatbotAgendarService:
                 f"Fecha: {payload.get('fecha_programada')}\n"
                 f"Hora: {payload.get('hora_inicio')}\n"
                 f"Modalidad: {payload.get('modalidad')}\n"
+                f"{linea_direccion}"
                 f"Precio: {precio.get('precio')} Bs\n\n"
                 "¿Confirmas que deseas agendar esta cita? Responde sí o no."
             ),
@@ -830,7 +1054,21 @@ class ChatbotAgendarService:
         id_servicio = payload.get("servicio")
         id_precio = payload.get("precio_servicio")
         modalidad = str(payload.get("modalidad") or "").strip().upper()
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            payload.get("direccion_cita")
+        )
         descripcion = payload.get("descripcion")
+
+        if modalidad == "CLINICA":
+            direccion_cita = None
+
+        if modalidad == "DOMICILIO" and not direccion_cita:
+            return ChatbotResponseBuilder.needs_data(
+                estado="ESPERANDO_DATOS_AGENDAMIENTO",
+                respuesta="¿A qué dirección debemos acudir para la cita a domicilio?",
+                faltan=["direccion_cita"],
+                data=data,
+            )
 
         if not fecha_programada or not hora_inicio:
             return ChatbotResponseBuilder.error(
@@ -938,6 +1176,7 @@ class ChatbotAgendarService:
                 hora_inicio=hora_inicio,
                 hora_fin=hora_fin,
                 modalidad=modalidad,
+                direccion_cita=direccion_cita,
                 descripcion=descripcion,
             )
         except Exception as exc:

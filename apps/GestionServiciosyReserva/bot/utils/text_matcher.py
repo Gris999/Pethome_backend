@@ -47,7 +47,7 @@ class TextMatcher:
             Lista de objetos o diccionarios.
 
         label_getter:
-            Función que recibe un candidato y devuelve el texto comparable.
+            FunciAn que recibe un candidato y devuelve el texto comparable.
         """
 
         matches = []

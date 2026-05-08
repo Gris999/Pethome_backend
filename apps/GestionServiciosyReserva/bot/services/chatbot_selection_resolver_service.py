@@ -30,8 +30,8 @@ class ChatbotSelectionResolverService:
         - "1"
         - "la primera"
         - "uno"
-        - "bano y peluqueria"
-        - "peluqueria"
+        - "baño y peluquería"
+        - "peluquería"
         """
 
         if not opciones:

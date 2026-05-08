@@ -1,4 +1,5 @@
-from textwrap import dedent
+﻿from textwrap import dedent
+
 
 class ChatbotPromptBuilder:
     @staticmethod
@@ -36,7 +37,10 @@ class ChatbotPromptBuilder:
                 "fecha_texto": null,
                 "fecha_programada": null,
                 "hora_inicio": null,
+                "fecha_invalida": false,
+                "motivo_fecha_invalida": null,
                 "modalidad": null,
+                "direccion_cita": null,
                 "motivo_cancelacion": null
               }},
               "faltan": [],
@@ -60,6 +64,11 @@ class ChatbotPromptBuilder:
             - Si el usuario no menciona fecha exacta o relativa clara, deja "fecha_programada" en null.
             - Si el usuario no menciona hora exacta, deja "hora_inicio" en null.
             - La hora debe estar en formato HH:MM.
+            - Si el usuario dice "ayer" o una fecha pasada, usa:
+              "fecha_programada": null, "fecha_invalida": true, "motivo_fecha_invalida": "No se puede agendar en fechas pasadas."
+            - Si el usuario pide una hora pasada para hoy, marca "fecha_invalida": true y explica el motivo en "motivo_fecha_invalida".
+            - Si "fecha_invalida" es true, no inventes una fecha futura.
+            - Si la fecha y hora parecen válidas, usa "fecha_invalida": false y "motivo_fecha_invalida": null.
             - modalidad solo puede ser CLINICA, DOMICILIO o null.
             - Si el usuario dice "en la veterinaria", "en clínica", "en el local" o similar, usa CLINICA.
             - Si el usuario dice "a domicilio", "en mi casa" o similar, usa DOMICILIO.

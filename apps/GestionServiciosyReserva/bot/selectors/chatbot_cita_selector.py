@@ -10,7 +10,7 @@ class ChatbotCitaSelector:
         Lista citas dentro del tenant actual.
 
         Si el usuario es CLIENT, solo devuelve sus propias citas.
-        Si es admin/recepción/veterinario, devuelve citas del tenant.
+        Si es admin/recepciAn/veterinario, devuelve citas del tenant.
         """
 
         qs = Cita.objects.select_related(
@@ -32,7 +32,7 @@ class ChatbotCitaSelector:
     @staticmethod
     def listar_citas_activas_usuario(*, user, veterinaria_id):
         """
-        Lista citas que todavía pueden ser canceladas o reprogramadas.
+        Lista citas que todavAa pueden ser canceladas o reprogramadas.
         """
 
         return ChatbotCitaSelector.listar_citas_usuario(
@@ -48,7 +48,7 @@ class ChatbotCitaSelector:
     @staticmethod
     def obtener_cita_usuario(*, user, veterinaria_id, id_cita):
         """
-        Obtiene una cita específica respetando tenant y usuario.
+        Obtiene una cita especAfica respetando tenant y usuario.
         """
 
         qs = ChatbotCitaSelector.listar_citas_usuario(

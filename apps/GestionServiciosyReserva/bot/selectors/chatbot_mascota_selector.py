@@ -7,13 +7,13 @@ class ChatbotMascotaSelector:
     @staticmethod
     def _get_mascota_model():
         """
-        Busca dinámicamente el modelo Mascota para evitar depender del import exacto.
+        Busca dinAmicamente el modelo Mascota para evitar depender del import exacto.
         """
         for model in apps.get_models():
             if model.__name__.lower() == "mascota":
                 return model
 
-        raise LookupError("No se encontró el modelo Mascota en las apps instaladas.")
+        raise LookupError("No se encontrA el modelo Mascota en las apps instaladas.")
 
     @staticmethod
     def listar_mascotas_usuario(*, user, veterinaria_id=None):
