@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 
 from .views import (
     CategoriaServicioDetailView,
@@ -50,4 +50,7 @@ urlpatterns = [
     path("especies/<int:pk>/", EspecieDetailView.as_view(), name="especie-detail"),
     path("razas/", RazaListCreateView.as_view(), name="raza-list-create"),
     path("razas/<int:pk>/", RazaDetailView.as_view(), name="raza-detail"),
+
+    #ChatBot
+    path("bot/", include("apps.GestionServiciosyReserva.bot.urls")),
 ]
