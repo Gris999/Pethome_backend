@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.GestionServiciosyReserva",
     "apps.GestionarClinicaVeterinaria.apps.GestionarClinicaVeterinariaConfig",
     "apps.GestionInventarioProveedores",
+    "apps.NotificacionesySeguimiento",
 ]
 
 MIDDLEWARE = [
