@@ -20,6 +20,7 @@ from .views.especie_raza_view import (
     RazaListCreateView,
     RazaDetailView,
 )
+from .views.precio_servicio_especifico_view import PrecioServicioEspecificoView
 
 urlpatterns = [
     # Categorias
@@ -53,4 +54,11 @@ urlpatterns = [
 
     #ChatBot
     path("bot/", include("apps.GestionServiciosyReserva.bot.urls")),
+
+    #Precio de un servicio especifico
+    path(
+        "precio-servicio-especifico/<int:id_servicio>/",
+        PrecioServicioEspecificoView.as_view(),
+        name="precio-servicio-especifico",
+    ),
 ]

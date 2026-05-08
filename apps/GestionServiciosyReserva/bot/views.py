@@ -9,7 +9,7 @@ from apps.AutenticacionySeguridad.mixins.tenant_mixins import TenantViewMixin
 from apps.AutenticacionySeguridad.permissions.tenant_rbac import HasComponentPermission
 
 from .serializers import ChatbotCitasRequestSerializer
-from .services.intent_detector_service import IntentDetectorService
+from .services.chatbot_orchestrator_service import ChatbotOrchestratorService
 
 
 class ChatbotCitasView(TenantViewMixin, APIView):
@@ -20,23 +20,23 @@ class ChatbotCitasView(TenantViewMixin, APIView):
         tags=["Bot Citas"],
         request=ChatbotCitasRequestSerializer,
         responses={
-            200: OpenApiResponse(description="Respuesta interpretada por la IA."),
+            200: OpenApiResponse(description="Respuesta del chatbot de citas."),
             400: OpenApiResponse(description="Datos inválidos."),
         },
     )
+    
     def post(self, request):
         serializer = ChatbotCitasRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         mensaje = serializer.validated_data["mensaje"]
+        contexto = serializer.validated_data.get("contexto", {})
 
-        resultado = IntentDetectorService.detectar_intencion(mensaje)
-
-        return Response(
-            {
-                "ok": True,
-                "mensaje_original": mensaje,
-                "resultado": resultado,
-            },
-            status=status.HTTP_200_OK,
+        resultado = ChatbotOrchestratorService.procesar_mensaje(
+            user=request.user,
+            veterinaria_id=self.get_tenant_id(),
+            mensaje=mensaje,
+            contexto=contexto,
         )
+
+        return Response(resultado, status=status.HTTP_200_OK)

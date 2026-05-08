@@ -7,3 +7,8 @@ class ChatbotCitasRequestSerializer(serializers.Serializer):
         allow_blank=False,
         max_length=1000,
     )
+
+    contexto = serializers.DictField(
+        required=False,
+        allow_empty=True,
+    )
