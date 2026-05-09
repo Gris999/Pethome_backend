@@ -10,6 +10,36 @@ from .openrouter_service import OpenRouterService
 
 class IntentDetectorService:
     @staticmethod
+    def _inferir_modalidad_desde_texto(mensaje_usuario):
+        texto = (mensaje_usuario or "").strip().lower()
+
+        if any(
+            fragmento in texto
+            for fragmento in [
+                "domicilio",
+                "a domicilio",
+                "en mi casa",
+                "mi casa",
+            ]
+        ):
+            return "DOMICILIO"
+
+        if any(
+            fragmento in texto
+            for fragmento in [
+                "clinica",
+                "clínica",
+                "en clinica",
+                "en clínica",
+                "veterinaria",
+                "en la veterinaria",
+            ]
+        ):
+            return "CLINICA"
+
+        return None
+
+    @staticmethod
     def _limpiar_json_respuesta(texto):
         """
         Limpia respuestas tipo ```json ... ``` por si el modelo devuelve markdown.
@@ -96,4 +126,18 @@ class IntentDetectorService:
                 "raw_response": raw_response,
             })
 
-        return IntentDetectorService._validar_estructura(data)
+        data = IntentDetectorService._validar_estructura(data)
+        datos = data.get("datos", {}) or {}
+
+        if not datos.get("modalidad"):
+            modalidad = IntentDetectorService._inferir_modalidad_desde_texto(
+                mensaje_usuario
+            )
+            if modalidad:
+                datos["modalidad"] = modalidad
+                data["datos"] = datos
+                data["faltan"] = [
+                    campo for campo in (data.get("faltan") or []) if campo != "modalidad"
+                ]
+
+        return data

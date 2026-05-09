@@ -1,3 +1,5 @@
+import re
+
 from .chatbot_response_builder import ChatbotResponseBuilder
 from ..utils.text_matcher import TextMatcher
 
@@ -42,6 +44,13 @@ class ChatbotSelectionResolverService:
         # 1. Si el usuario manda un número directo: "1", "2", "3"
         if mensaje_norm.isdigit():
             numero = int(mensaje_norm)
+            for opcion in opciones:
+                if opcion.get("numero") == numero:
+                    return opcion
+
+        numero_en_frase = re.search(r"\b(\d+)\b", mensaje_norm)
+        if numero_en_frase:
+            numero = int(numero_en_frase.group(1))
             for opcion in opciones:
                 if opcion.get("numero") == numero:
                     return opcion
