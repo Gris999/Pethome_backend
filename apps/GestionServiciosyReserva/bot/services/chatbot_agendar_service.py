@@ -676,7 +676,31 @@ class ChatbotAgendarService:
             )
 
         precio = precios[0]
+        return ChatbotAgendarService._construir_confirmacion_con_precio(
+            interpretacion=interpretacion,
+            mascota=mascota,
+            servicio=servicio,
+            precio=precio,
+        )
+
+    @staticmethod
+    def _construir_confirmacion_con_precio(
+        *,
+        interpretacion,
+        mascota,
+        servicio,
+        precio,
+    ):
+        datos = interpretacion.get("datos", {}) or {}
+        hora_inicio = datos.get("hora_inicio")
         hora_inicio_normalizada = ChatbotTimeUtils.normalize_time(hora_inicio)
+        fecha_programada = datos.get("fecha_programada")
+        modalidad = str(datos.get("modalidad") or "").strip().upper()
+        direccion_cita = ChatbotAgendarService._normalizar_direccion(
+            datos.get("direccion_cita")
+        )
+        if modalidad == "CLINICA":
+            direccion_cita = None
 
         payload_crear_cita = {
             "mascota": getattr(mascota, "id_mascota", None),
@@ -920,6 +944,30 @@ class ChatbotAgendarService:
         )
 
     @staticmethod
+    def continuar_seleccion_mascota(*, user, veterinaria_id, mensaje, contexto):
+        opcion = ChatbotSelectionResolverService.resolver_opcion_por_mensaje(
+            mensaje=mensaje,
+            opciones=contexto.get("opciones", []),
+        )
+
+        if not opcion:
+            return ChatbotSelectionResolverService.respuesta_no_entendida(
+                contexto=contexto
+            )
+
+        data = contexto.get("data", {}) or {}
+        interpretacion = data.get("interpretacion", {}) or {}
+        datos = interpretacion.get("datos", {}) or {}
+        datos["mascota_nombre"] = opcion.get("nombre")
+        interpretacion["datos"] = datos
+
+        return ChatbotAgendarService.preparar_agendamiento(
+            user=user,
+            veterinaria_id=veterinaria_id,
+            interpretacion=interpretacion,
+        )
+
+    @staticmethod
     def continuar_seleccion_servicio(*, user, veterinaria_id, mensaje, contexto):
         opcion = ChatbotSelectionResolverService.resolver_opcion_por_mensaje(
             mensaje=mensaje,
@@ -972,6 +1020,74 @@ class ChatbotAgendarService:
             interpretacion=interpretacion,
             mascota=mascota,
             servicio=servicio,
+        )
+
+    @staticmethod
+    def continuar_seleccion_precio_servicio(*, user, veterinaria_id, mensaje, contexto):
+        opcion = ChatbotSelectionResolverService.resolver_opcion_por_mensaje(
+            mensaje=mensaje,
+            opciones=contexto.get("opciones", []),
+        )
+
+        if not opcion:
+            return ChatbotSelectionResolverService.respuesta_no_entendida(
+                contexto=contexto
+            )
+
+        data = contexto.get("data", {}) or {}
+        interpretacion = data.get("interpretacion", {}) or {}
+        id_mascota = data.get("id_mascota")
+        id_servicio = data.get("id_servicio")
+        modalidad = data.get("modalidad")
+
+        mascota = ChatbotMascotaSelector.obtener_mascota_usuario_por_id(
+            user=user,
+            veterinaria_id=veterinaria_id,
+            id_mascota=id_mascota,
+        )
+        if not mascota:
+            return ChatbotResponseBuilder.error(
+                code="MASCOTA_NO_ENCONTRADA",
+                respuesta=(
+                    "No pude recuperar la mascota seleccionada. "
+                    "Intenta iniciar el agendamiento nuevamente."
+                ),
+            )
+
+        servicio = ChatbotServicioSelector.obtener_servicio_activo_por_id(
+            veterinaria_id=veterinaria_id,
+            id_servicio=id_servicio,
+        )
+        if not servicio:
+            return ChatbotResponseBuilder.error(
+                code="SERVICIO_NO_ENCONTRADO",
+                respuesta=(
+                    "No pude recuperar el servicio seleccionado. "
+                    "Intenta iniciar el agendamiento nuevamente."
+                ),
+            )
+
+        precio = ChatbotPrecioSelector.obtener_precio_valido_por_id(
+            veterinaria_id=veterinaria_id,
+            id_precio=opcion.get("id_precio"),
+            servicio_id=id_servicio,
+            modalidad=modalidad,
+        )
+        if not precio:
+            return ChatbotResponseBuilder.error(
+                code="PRECIO_NO_VALIDO",
+                respuesta=(
+                    "No pude recuperar el precio seleccionado. "
+                    "Intenta elegir otra opcion."
+                ),
+                contexto=contexto,
+            )
+
+        return ChatbotAgendarService._construir_confirmacion_con_precio(
+            interpretacion=interpretacion,
+            mascota=mascota,
+            servicio=servicio,
+            precio=precio,
         )
 
     @staticmethod

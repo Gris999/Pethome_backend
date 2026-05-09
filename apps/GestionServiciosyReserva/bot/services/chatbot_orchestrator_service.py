@@ -1,4 +1,4 @@
-﻿from .intent_detector_service import IntentDetectorService
+from .intent_detector_service import IntentDetectorService
 from .chatbot_agendar_service import ChatbotAgendarService
 from .chatbot_cancelar_service import ChatbotCancelarService
 from .chatbot_reprogramar_service import ChatbotReprogramarService
@@ -105,8 +105,24 @@ class ChatbotOrchestratorService:
                 contexto=contexto,
             )
 
+        if estado == "ESPERANDO_SELECCION_MASCOTA":
+            return ChatbotAgendarService.continuar_seleccion_mascota(
+                user=user,
+                veterinaria_id=veterinaria_id,
+                mensaje=mensaje,
+                contexto=contexto,
+            )
+
         if estado == "ESPERANDO_SELECCION_SERVICIO":
             return ChatbotAgendarService.continuar_seleccion_servicio(
+                user=user,
+                veterinaria_id=veterinaria_id,
+                mensaje=mensaje,
+                contexto=contexto,
+            )
+
+        if estado == "ESPERANDO_SELECCION_PRECIO_SERVICIO":
+            return ChatbotAgendarService.continuar_seleccion_precio_servicio(
                 user=user,
                 veterinaria_id=veterinaria_id,
                 mensaje=mensaje,
