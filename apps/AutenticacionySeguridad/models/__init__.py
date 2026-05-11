@@ -10,6 +10,7 @@ from .usuario_grupo import UsuarioGrupo
 from .componente_sistema import ComponenteSistema
 from .grupo_permiso_componente import GrupoPermisoComponente
 from .backup_restore import BackupRestore
+from .backup_config import BackupConfig
 
 __all__ = [
     "Rol",
@@ -24,4 +25,5 @@ __all__ = [
     "ComponenteSistema",
     "GrupoPermisoComponente",
     "BackupRestore",
+    "BackupConfig",
 ]

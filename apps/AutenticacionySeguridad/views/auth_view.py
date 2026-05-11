@@ -35,6 +35,23 @@ def get_tokens_for_user(user):
     return {"refresh": str(refresh), "access": str(refresh.access_token)}
 
 
+def safe_session_login(request, user):
+    """
+    Intenta iniciar sesión en la sesión Django solo si existe soporte de sesión.
+    El login principal del sistema usa JWT, así que esta llamada no debe romper
+    la respuesta del API si no hay session middleware disponible.
+    """
+    session = getattr(request, "session", None)
+    if session is None:
+        return
+
+    try:
+        auth_login(request, user)
+    except Exception:
+        # No interrumpir el login JWT si la sesión no puede persistirse.
+        logger.exception("No se pudo crear sesión Django durante login JWT")
+
+
 class LoginView(TenantViewMixin, APIView):
     permission_classes = [AllowAny]
 
@@ -73,7 +90,7 @@ class LoginView(TenantViewMixin, APIView):
         plataforma = serializer.validated_data.get("plataforma", "WEB")
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, plataforma)
-        auth_login(request, user)
+        safe_session_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.LOGIN_EXITOSO,
@@ -121,7 +138,7 @@ class MobileLoginView(TenantViewMixin, APIView):
         user = serializer.validated_data["user"]
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, "MOVIL")
-        auth_login(request, user)
+        safe_session_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.LOGIN_EXITOSO,
@@ -224,7 +241,7 @@ class MobileRegisterView(TenantViewMixin, APIView):
 
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, "MOVIL")
-        auth_login(request, user)
+        safe_session_login(request, user)
 
         self.registrar_bitacora(
             accion=BitacoraAccion.CLIENTE_CREADO,
