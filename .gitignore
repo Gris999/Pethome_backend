@@ -6,6 +6,11 @@
 .env
 .env.local
 .env.*.local
+adminsdk.json
+serviceAccountKey.json
+firebase-adminsdk.json
+*-firebase-adminsdk-*.json
+*.json.secret
 
 # ─── Python ─────────────────────────────────────────────────
 __pycache__/
