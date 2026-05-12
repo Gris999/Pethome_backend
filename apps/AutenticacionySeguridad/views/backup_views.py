@@ -131,20 +131,34 @@ class BackupRestoreView(TenantViewMixin, generics.GenericAPIView):
         """Restaura la BD desde un backup específico."""
         try:
             tenant = getattr(request, "tenant", None)
-            if not tenant:
+            if not tenant and not getattr(request.user, "is_superuser", False):
                 return Response(
                     {"error": "Tenant no encontrado"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             motivo = request.data.get("motivo", "Restauración manual")
+            es_superuser = getattr(request.user, "is_superuser", False)
+            scope = str(request.data.get("scope", "TENANT")).upper()
 
-            # Validar que el backup pertenece a la veterinaria del usuario
-            backup = BackupRestore.objects.get(
-                id_backup_restore=backup_id,
-                veterinaria_id=tenant.id,
-                tipo="BACKUP"
-            )
+            if scope == "GLOBAL" and not es_superuser:
+                return Response(
+                    {"error": "Solo un superuser puede solicitar restauración global"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+            # Validar alcance según rol
+            if es_superuser:
+                backup = BackupRestore.objects.get(
+                    id_backup_restore=backup_id,
+                    tipo="BACKUP",
+                )
+            else:
+                backup = BackupRestore.objects.get(
+                    id_backup_restore=backup_id,
+                    veterinaria_id=tenant.id,
+                    tipo="BACKUP",
+                )
 
             # Llamar servicio de restore
             success = BackupService.restore_backup(
@@ -152,6 +166,7 @@ class BackupRestoreView(TenantViewMixin, generics.GenericAPIView):
                 usuario=request.user,
                 request=request,
                 motivo=motivo,
+                scope=scope,
             )
 
             if success:
@@ -215,7 +230,7 @@ class BackupConfigRetrieveUpdateView(TenantViewMixin, generics.RetrieveUpdateAPI
         """Actualiza la configuración de backups automáticos."""
         try:
             config = self.get_object()
-            serializer = self.get_serializer(config, data=request.data, partial=False)
+            serializer = self.get_serializer(config, data=request.data, partial=True)
             
             if serializer.is_valid():
                 frecuencia = serializer.validated_data.get("frecuencia", config.frecuencia)

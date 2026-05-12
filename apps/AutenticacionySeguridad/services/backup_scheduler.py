@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from django.utils import timezone
@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 
 from ..models.backup_config import BackupConfig
 from ..models.veterinaria import Veterinaria
+from ..models.backup_restore import BackupRestore
 from .backup_service import BackupService
 from .bitacora_register_service import BitacoraService
 
@@ -25,6 +26,7 @@ class BackupScheduler:
     def run_scheduled_backups() -> dict:
         """
         Verifica todas las configuraciones de backup y ejecuta las que estén vencidas.
+        Considera frecuencia, hora_ejecucion, y dias_semana para PERSONALIZADO.
         Retorna un resumen de operaciones realizadas.
         """
         logger.info("Iniciando ejecución de backups programados...")
@@ -33,6 +35,7 @@ class BackupScheduler:
             "total_processed": 0,
             "successful": 0,
             "failed": 0,
+            "skipped": 0,
             "errors": [],
         }
 
@@ -42,15 +45,19 @@ class BackupScheduler:
             # Obtener todas las configuraciones activas
             configs = BackupConfig.objects.filter(
                 activo=True,
-                próximo_backup_programado__lte=now
             ).select_related("veterinaria")
             
-            logger.info(f"Encontradas {configs.count()} veterinarias con backup programado vencido")
+            logger.info(f"Verificando {configs.count()} configuraciones de backup activas")
             
             for config in configs:
-                summary["total_processed"] += 1
-                
                 try:
+                    # Verificar si es tiempo de ejecutar este backup
+                    if not BackupScheduler._should_run_backup(config, now):
+                        summary["skipped"] += 1
+                        continue
+                    
+                    summary["total_processed"] += 1
+                    
                     # Ejecutar backup automático
                     backup = BackupScheduler._execute_scheduled_backup(config)
                     
@@ -94,6 +101,49 @@ class BackupScheduler:
             return summary
 
     @staticmethod
+    def _should_run_backup(config: BackupConfig, now: datetime) -> bool:
+        """
+        Determina si es tiempo de ejecutar el backup para esta configuración.
+        
+        Considera:
+        - Si próximo_backup_programado ya pasó
+        - Que no se ejecute más de una vez por día para la misma config
+        - Que respete la hora_ejecucion para frecuencias personalizadas
+        
+        Args:
+            config: BackupConfig a verificar
+            now: datetime actual
+            
+        Returns:
+            True si debe ejecutarse, False en caso contrario
+        """
+        if not config.próximo_backup_programado:
+            logger.warning(f"BackupConfig {config.id_backup_config} sin próximo_backup_programado")
+            return False
+        
+        # Verificar si el tiempo programado ya pasó
+        if config.próximo_backup_programado > now:
+            return False
+        
+        # Verificar si hay un backup reciente (últimos 30 minutos) para evitar duplicados
+        thirty_minutes_ago = now - timedelta(minutes=30)
+        recent_backup = BackupRestore.objects.filter(
+            veterinaria=config.veterinaria,
+            tipo="BACKUP",
+            estado="EXITOSO",
+            fecha_hora__gte=thirty_minutes_ago
+        ).exists()
+        
+        if recent_backup:
+            logger.info(
+                f"Backup reciente encontrado para veterinaria {config.veterinaria.id_veterinaria}, "
+                f"saltando ejecución"
+            )
+            return False
+        
+        return True
+
+    @staticmethod
     def _execute_scheduled_backup(config: BackupConfig):
         """
         Ejecuta un backup automático para una configuración específica.
@@ -123,10 +173,10 @@ class BackupScheduler:
     @staticmethod
     def _update_next_backup_time(config: BackupConfig) -> None:
         """
-        Actualiza la fecha/hora del próximo backup según la frecuencia.
+        Actualiza la fecha/hora del próximo backup según la frecuencia y configuración personalizada.
         """
         try:
-            next_backup_time = BackupService._calculate_next_backup(config.frecuencia)
+            next_backup_time = BackupService._calculate_next_backup_with_config(config)
             config.próximo_backup_programado = next_backup_time
             config.save()
             

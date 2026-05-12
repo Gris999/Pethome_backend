@@ -58,10 +58,14 @@ class BackupConfigSerializer(serializers.ModelSerializer):
             "activo",
             "creado",
             "actualizado",
+            "hora_ejecucion",
+            "dias_semana",
         ]
         read_only_fields = [
             "id_backup_config",
+            "veterinaria",
             "veterinaria_nombre",
+            "último_backup",
             "creado",
             "actualizado",
             "próximo_backup_programado",
@@ -78,4 +82,14 @@ class BackupConfigSerializer(serializers.ModelSerializer):
     def validate_dias_retención(self, value):
         if value < 1 or value > 365:
             raise serializers.ValidationError("Días de retención debe estar entre 1 y 365")
+        return value
+    
+    def validate_hora_ejecucion(self, value):
+        if not isinstance(value, int) or value < 0 or value > 23:
+            raise serializers.ValidationError("Hora de ejecución debe estar entre 0 y 23")
+        return value
+    
+    def validate_dias_semana(self, value):
+        if value and not all(isinstance(d, int) and 0 <= d <= 6 for d in value):
+            raise serializers.ValidationError("Días de semana deben ser números entre 0 y 6")
         return value

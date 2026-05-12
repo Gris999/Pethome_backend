@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.postgres.fields import ArrayField
 
 
 class BackupConfig(models.Model):
@@ -27,6 +28,15 @@ class BackupConfig(models.Model):
     activo = models.BooleanField(default=True)
     creado = models.DateTimeField(auto_now_add=True)
     actualizado = models.DateTimeField(auto_now=True)
+    
+    # Campos para personalización (cuando frecuencia == "PERSONALIZADO")
+    hora_ejecucion = models.IntegerField(default=2, help_text="Hora del día 0-23")
+    dias_semana = ArrayField(
+        models.IntegerField(),
+        default=list,
+        blank=True,
+        help_text="Días de semana [0-6] donde 0=lunes, 6=domingo"
+    )
 
     class Meta:
         db_table = "backup_config"

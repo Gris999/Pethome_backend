@@ -2,14 +2,18 @@ import logging
 import os
 import subprocess
 import hashlib
+from collections import deque
 from glob import glob
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from io import BytesIO
 from shutil import which
 
+from django.apps import apps
 from django.conf import settings
-from django.db import models
+from django.core import serializers
+from django.core.management.color import no_style
+from django.db import connection, models, transaction
 
 from ..models.backup_restore import BackupRestore
 from ..models.backup_config import BackupConfig
@@ -141,6 +145,7 @@ class BackupService:
         usuario: Any,
         request: Optional[Any] = None,
         motivo: str = "Restauración manual",
+        scope: str = "TENANT",
     ) -> bool:
         """
         Restaura una BD desde un backup seleccionado.
@@ -151,6 +156,8 @@ class BackupService:
             
             if backup.estado != "EXITOSO":
                 raise ValueError("Solo se pueden restaurar backups exitosos")
+
+            scope = (scope or "TENANT").upper()
             
             # Crear registro de restauración
             restore_record = BackupRestore.objects.create(
@@ -166,8 +173,23 @@ class BackupService:
                 # Descargar de GCS
                 dump_content = BackupService._download_from_gcs(backup.ruta_archivo)
                 
-                # Restaurar en BD
-                BackupService._restore_pg_dump(dump_content, backup.veterinaria.id_veterinaria)
+                if scope == "GLOBAL" and getattr(usuario, "is_superuser", False):
+                    # Restore completo de la base para superuser
+                    BackupService._restore_pg_dump(dump_content, backup.veterinaria.id_veterinaria)
+                else:
+                    # Preserve la data actual de otras veterinarias y la cuenta del usuario ejecutor
+                    tenant_snapshots = BackupService._snapshot_other_veterinarias(
+                        excluded_veterinaria_id=backup.veterinaria.id_veterinaria,
+                    )
+                    executor_snapshot = BackupService._snapshot_user_state(usuario)
+
+                    BackupService._restore_pg_dump(dump_content, backup.veterinaria.id_veterinaria)
+
+                    # La conexión puede quedar desincronizada después del restore externo
+                    connection.close()
+
+                    BackupService._restore_tenant_snapshots(tenant_snapshots)
+                    BackupService._restore_user_state(executor_snapshot)
                 
                 # Actualizar registros
                 restore_record.estado = "EXITOSO"
@@ -215,7 +237,7 @@ class BackupService:
                 
                 logger.error(f"Restauración fallida: {str(e)}")
                 return False
-                
+
         except BackupRestore.DoesNotExist:
             logger.error(f"Backup {backup_id} no encontrado o no es de tipo BACKUP")
             BitacoraService.registrar_evento(
@@ -230,6 +252,186 @@ class BackupService:
         except Exception as e:
             logger.exception(f"Error inesperado en restore_backup: {str(e)}")
             return False
+
+    @staticmethod
+    def _snapshot_other_veterinarias(excluded_veterinaria_id: int) -> Dict[str, Any]:
+        """
+        Captura el estado actual de todas las veterinarias excepto la que se va a restaurar.
+        Se usa para re-aplicar la data de otras clínicas después de un restore global.
+        """
+        snapshots = []
+        veterinarias = Veterinaria.objects.exclude(id_veterinaria=excluded_veterinaria_id).order_by(
+            "id_veterinaria"
+        )
+
+        for veterinaria in veterinarias:
+            instances = BackupService._collect_related_instances(veterinaria)
+            if instances:
+                snapshots.append(
+                    {
+                        "veterinaria_id": veterinaria.id_veterinaria,
+                        "data": serializers.serialize("json", instances),
+                    }
+                )
+
+        return {"tenants": snapshots}
+
+    @staticmethod
+    def _snapshot_user_state(usuario: Any) -> Optional[Dict[str, Any]]:
+        """
+        Captura el estado del usuario que ejecuta la restauración para no perder sus permisos.
+        """
+        if not getattr(usuario, "pk", None):
+            return None
+
+        current_user = type(usuario).objects.select_related("role", "veterinaria").prefetch_related(
+            "groups",
+            "user_permissions",
+        ).get(pk=usuario.pk)
+
+        return {
+            "correo": current_user.correo,
+            "fields": {
+                "role_id": current_user.role_id,
+                "veterinaria_id": current_user.veterinaria_id,
+                "is_active": current_user.is_active,
+                "is_staff": current_user.is_staff,
+                "is_superuser": current_user.is_superuser,
+                "password": current_user.password,
+                "last_login": current_user.last_login,
+                "date_joined": current_user.date_joined,
+            },
+            "groups": list(current_user.groups.values_list("pk", flat=True)),
+            "user_permissions": list(current_user.user_permissions.values_list("pk", flat=True)),
+        }
+
+    @staticmethod
+    def _collect_related_instances(root_instance: models.Model) -> list[models.Model]:
+        """
+        Recolecta recursivamente el árbol de objetos relacionados a una veterinaria.
+        """
+        queue: deque[models.Model] = deque([root_instance])
+        visited: set[tuple[str, Any]] = set()
+        ordered_instances: list[models.Model] = []
+
+        while queue:
+            instance = queue.popleft()
+            instance_key = (instance._meta.label_lower, instance.pk)
+            if instance_key in visited:
+                continue
+
+            visited.add(instance_key)
+            ordered_instances.append(instance)
+
+            for field in instance._meta.get_fields():
+                if not getattr(field, "auto_created", False) or getattr(field, "concrete", True):
+                    continue
+
+                if getattr(field, "many_to_many", False):
+                    continue
+
+                accessor_name = field.get_accessor_name()
+                try:
+                    related_value = getattr(instance, accessor_name)
+                except Exception:
+                    continue
+
+                if getattr(field, "one_to_one", False):
+                    try:
+                        related_instance = related_value
+                    except Exception:
+                        related_instance = None
+
+                    if related_instance is not None:
+                        queue.append(related_instance)
+                    continue
+
+                try:
+                    for related_instance in related_value.all():
+                        queue.append(related_instance)
+                except Exception:
+                    continue
+
+        return ordered_instances
+
+    @staticmethod
+    def _restore_tenant_snapshots(snapshot_payload: Dict[str, Any]) -> None:
+        """
+        Reaplica la data de las otras veterinarias luego de restaurar el backup objetivo.
+        """
+        tenant_snapshots = snapshot_payload.get("tenants", []) if snapshot_payload else []
+        restored_models: list[type[models.Model]] = []
+
+        with transaction.atomic():
+            for tenant_snapshot in tenant_snapshots:
+                objects = list(serializers.deserialize("json", tenant_snapshot["data"]))
+                for obj in objects:
+                    restored_models.append(obj.object.__class__)
+                    obj.save()
+
+            BackupService._reset_sequences(restored_models)
+
+    @staticmethod
+    def _restore_user_state(snapshot: Optional[Dict[str, Any]]) -> None:
+        """
+        Reaplica el usuario que ejecutó la restauración conservando contraseña y permisos.
+        """
+        if not snapshot:
+            return
+
+        try:
+            user = getattr(BackupService, "_user_model", None)
+            if user is None:
+                from ..models.user import User as UserModel
+
+                BackupService._user_model = UserModel
+                user = UserModel
+
+            restored_user = user.objects.select_related("role", "veterinaria").prefetch_related(
+                "groups",
+                "user_permissions",
+            ).get(correo=snapshot["correo"])
+
+            fields = snapshot["fields"]
+            restored_user.role_id = fields.get("role_id")
+            restored_user.veterinaria_id = fields.get("veterinaria_id")
+            restored_user.is_active = fields.get("is_active", restored_user.is_active)
+            restored_user.is_staff = fields.get("is_staff", restored_user.is_staff)
+            restored_user.is_superuser = fields.get("is_superuser", restored_user.is_superuser)
+            restored_user.password = fields.get("password", restored_user.password)
+            restored_user.last_login = fields.get("last_login")
+            restored_user.date_joined = fields.get("date_joined", restored_user.date_joined)
+            restored_user.save()
+
+            restored_user.groups.set(snapshot.get("groups", []))
+            restored_user.user_permissions.set(snapshot.get("user_permissions", []))
+
+        except Exception as e:
+            logger.warning(f"No se pudo restaurar el usuario ejecutor: {str(e)}")
+
+    @staticmethod
+    def _reset_sequences(model_classes: list[type[models.Model]]) -> None:
+        """
+        Ajusta las secuencias de AutoField después de reinsertar datos con PK explícita.
+        """
+        unique_models = []
+        seen = set()
+        for model_class in model_classes:
+            if model_class in seen:
+                continue
+            seen.add(model_class)
+            unique_models.append(model_class)
+
+        if not unique_models:
+            return
+
+        sql_statements = connection.ops.sequence_reset_sql(no_style(), unique_models)
+        if not sql_statements:
+            return
+
+        with connection.cursor() as cursor:
+            for sql in sql_statements:
+                cursor.execute(sql)
 
     @staticmethod
     def _generate_pg_dump(veterinaria_id: int) -> str:
@@ -408,10 +610,8 @@ class BackupService:
             config.frecuencia = frecuencia
             config.dias_retención = dias_retención
             
-            # Calcular próximo backup según frecuencia
-            config.próximo_backup_programado = BackupService._calculate_next_backup(
-                frecuencia
-            )
+            # Calcular próximo backup usando la configuración completa
+            config.próximo_backup_programado = BackupService._calculate_next_backup_with_config(config)
             
             config.save()
             
@@ -451,7 +651,8 @@ class BackupService:
     @staticmethod
     def _calculate_next_backup(frecuencia: str) -> datetime:
         """
-        Calcula la fecha/hora del próximo backup según la frecuencia.
+        Calcula la fecha/hora del próximo backup según la frecuencia básica.
+        Para configuraciones personalizadas, usar _calculate_next_backup_with_config().
         """
         now = datetime.now()
         
@@ -463,6 +664,69 @@ class BackupService:
             return now + timedelta(days=30)
         else:  # PERSONALIZADO o desconocido
             return now + timedelta(weeks=1)  # Default a semanal
+
+    @staticmethod
+    def _calculate_next_backup_with_config(config: BackupConfig) -> datetime:
+        """
+        Calcula la fecha/hora del próximo backup considerando la configuración completa.
+        Soporta horarios personalizados con días específicos.
+        
+        Args:
+            config: Instancia de BackupConfig con todos los campos
+            
+        Returns:
+            datetime con la próxima ejecución programada
+        """
+        from django.utils import timezone
+        
+        now = timezone.now()
+        
+        if config.frecuencia == "DIARIO":
+            # Próximo día a la hora especificada (default 02:00)
+            next_time = now.replace(hour=config.hora_ejecucion, minute=0, second=0, microsecond=0)
+            next_time += timedelta(days=1)
+            return next_time
+            
+        elif config.frecuencia == "SEMANAL":
+            # Próxima semana, mismo día, hora especificada
+            next_time = now + timedelta(weeks=1)
+            next_time = next_time.replace(hour=config.hora_ejecucion, minute=0, second=0, microsecond=0)
+            return next_time
+            
+        elif config.frecuencia == "MENSUAL":
+            # Próximo mes, mismo día, hora especificada
+            if now.month == 12:
+                next_time = now.replace(year=now.year + 1, month=1, day=now.day)
+            else:
+                next_time = now.replace(month=now.month + 1, day=now.day)
+            next_time = next_time.replace(hour=config.hora_ejecucion, minute=0, second=0, microsecond=0)
+            return next_time
+            
+        elif config.frecuencia == "PERSONALIZADO":
+            # Encontrar próximo día que coincida con dias_semana
+            if not config.dias_semana:
+                logger.warning(f"BackupConfig {config.id_backup_config} tiene PERSONALIZADO pero sin días configurados")
+                return now + timedelta(weeks=1)
+            
+            # Comenzar desde mañana
+            candidate = now + timedelta(days=1)
+            candidate = candidate.replace(hour=config.hora_ejecucion, minute=0, second=0, microsecond=0)
+            
+            # Buscar el próximo día que esté en dias_semana (0=lunes, 6=domingo)
+            max_attempts = 7
+            for _ in range(max_attempts):
+                weekday = candidate.weekday()  # 0-6 (lunes-domingo en Python)
+                if weekday in config.dias_semana:
+                    return candidate
+                candidate += timedelta(days=1)
+            
+            # Si no encuentra en 7 días, usar el default
+            logger.warning(f"No se encontró día válido en dias_semana para BackupConfig {config.id_backup_config}")
+            return now + timedelta(weeks=1)
+        
+        else:
+            # Default desconocido
+            return now + timedelta(weeks=1)
 
     @staticmethod
     def cleanup_old_backups(veterinaria_id: int, days_retention: int) -> int:
@@ -539,7 +803,7 @@ class BackupService:
         """
         Resuelve la ruta del ejecutable de PostgreSQL.
 
-        Prioridad:
+    r"""
         1. Ruta configurada en .env
         2. PATH del sistema
         3. Instalaciones típicas en C:\Program Files\PostgreSQL\*\bin
