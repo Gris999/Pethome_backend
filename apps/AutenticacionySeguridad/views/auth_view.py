@@ -2,8 +2,10 @@ from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
+import logging
 from rest_framework import serializers, status
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import APIException, ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,8 +22,24 @@ from ..serializers.login_serializer import (
     MobileRegisterSerializer,
     get_active_suscripcion,
 )
+from ..serializers.password_security_serializer import (
+    ChangePasswordSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
+)
 from ..services.auth_context_service import AuthContextService
+from ..services.auth_security_service import (
+    change_user_password,
+    consume_password_reset_token,
+    create_password_reset_token,
+    get_password_reset_expiration_minutes,
+    get_user_for_login,
+    reset_user_password,
+    send_password_reset_email,
+)
 from ..services.base_access_seed_service import BaseAccessSeedService
+
+logger = logging.getLogger(__name__)
 
 
 def get_tokens_for_user(user):
@@ -59,7 +77,7 @@ class LoginView(TenantViewMixin, APIView):
         serializer = LoginSerializer(data=request.data, context={"request": request})
         try:
             serializer.is_valid(raise_exception=True)
-        except ValidationError as exc:
+        except APIException as exc:
             self.registrar_bitacora(
                 accion=BitacoraAccion.LOGIN_FALLIDO,
                 descripcion="Intento de login web fallido.",
@@ -108,7 +126,7 @@ class MobileLoginView(TenantViewMixin, APIView):
         serializer = MobileLoginSerializer(data=request.data, context={"request": request})
         try:
             serializer.is_valid(raise_exception=True)
-        except ValidationError as exc:
+        except APIException as exc:
             self.registrar_bitacora(
                 accion=BitacoraAccion.LOGIN_FALLIDO,
                 descripcion="Intento de login movil fallido.",
@@ -315,6 +333,116 @@ class LogoutView(TenantViewMixin, APIView):
             resultado=BitacoraResultado.EXITO,
         )
         return Response({"detail": detail_message}, status=status.HTTP_200_OK)
+
+
+class ForgotPasswordView(TenantViewMixin, APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Auth"],
+        request=ForgotPasswordSerializer,
+        responses={200: OpenApiResponse(description="Respuesta generica de recuperacion.")},
+    )
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        correo = serializer.validated_data["correo"]
+        user = get_user_for_login(correo)
+
+        if user and user.is_active:
+            try:
+                token = create_password_reset_token(user)
+                send_password_reset_email(user, token)
+            except Exception as exc:
+                logger.exception("Fallo el envio del correo de recuperacion para %s", correo)
+                self.registrar_bitacora(
+                    accion=BitacoraAccion.CAMBIO_PASSWORD,
+                    descripcion="Fallo el envio del correo de recuperacion.",
+                    usuario=user,
+                    modulo=BitacoraModulo.AUTENTICACION,
+                    resultado=BitacoraResultado.FALLO,
+                    metadatos={"correo": correo, "error": str(exc)},
+                )
+            else:
+                self.registrar_bitacora(
+                    accion=BitacoraAccion.CAMBIO_PASSWORD,
+                    descripcion="Se genero token de recuperacion de contrasena.",
+                    usuario=user,
+                    modulo=BitacoraModulo.AUTENTICACION,
+                    resultado=BitacoraResultado.EXITO,
+                    metadatos={
+                        "correo": correo,
+                        "expira_en_minutos": get_password_reset_expiration_minutes(),
+                    },
+                )
+
+        return Response(
+            {"detail": "Si el correo existe, se enviara un enlace de recuperacion."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ResetPasswordView(TenantViewMixin, APIView):
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        tags=["Auth"],
+        request=ResetPasswordSerializer,
+        responses={200: OpenApiResponse(description="Contrasena restablecida.")},
+    )
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = consume_password_reset_token(serializer.validated_data["token"])
+        reset_user_password(token, serializer.validated_data["nueva_password"])
+
+        self.registrar_bitacora(
+            accion=BitacoraAccion.CAMBIO_PASSWORD,
+            descripcion="Contrasena restablecida mediante token.",
+            usuario=token.usuario,
+            modulo=BitacoraModulo.AUTENTICACION,
+            resultado=BitacoraResultado.EXITO,
+            metadatos={"reset_por_token": True},
+        )
+
+        return Response(
+            {"detail": "La contrasena fue restablecida correctamente."},
+            status=status.HTTP_200_OK,
+        )
+
+
+class ChangePasswordView(TenantViewMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        tags=["Auth"],
+        request=ChangePasswordSerializer,
+        responses={200: OpenApiResponse(description="Contrasena cambiada.")},
+    )
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        change_user_password(
+            user=request.user,
+            password_actual=serializer.validated_data["password_actual"],
+            nueva_password=serializer.validated_data["nueva_password"],
+        )
+
+        self.registrar_bitacora(
+            accion=BitacoraAccion.CAMBIO_PASSWORD,
+            descripcion="Cambio de contrasena autenticado.",
+            usuario=request.user,
+            modulo=BitacoraModulo.AUTENTICACION,
+            resultado=BitacoraResultado.EXITO,
+            metadatos={"change_password": True, "fecha": timezone.now().isoformat()},
+        )
+
+        return Response(
+            {"detail": "La contrasena fue actualizada correctamente."},
+            status=status.HTTP_200_OK,
+        )
 
 
 class PublicVeterinariaListView(APIView):
