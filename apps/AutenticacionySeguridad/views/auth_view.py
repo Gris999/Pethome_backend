@@ -14,7 +14,7 @@ from drf_spectacular.utils import OpenApiResponse, extend_schema, inline_seriali
 
 from ..events.bitacora_events import BitacoraAccion, BitacoraModulo, BitacoraResultado
 from ..mixins.tenant_mixins import TenantViewMixin
-from ..models import Perfil, Rol, User, Veterinaria
+from ..models import GrupoUsuario, Perfil, Rol, User, UsuarioGrupo, Veterinaria
 from ..serializers.auth_context_serializer import AuthContextSerializer
 from ..serializers.login_serializer import (
     LoginSerializer,
@@ -37,7 +37,6 @@ from ..services.auth_security_service import (
     reset_user_password,
     send_password_reset_email,
 )
-from ..services.base_access_seed_service import BaseAccessSeedService
 
 logger = logging.getLogger(__name__)
 
@@ -236,9 +235,27 @@ class MobileRegisterView(TenantViewMixin, APIView):
             estado=True,
         )
 
-        BaseAccessSeedService.seed_base_groups_for_veterinaria(veterinaria)
-        BaseAccessSeedService.seed_base_permissions_for_veterinaria(veterinaria)
-        BaseAccessSeedService.assign_existing_users_to_base_groups(veterinaria)
+        # Registro movil debe ser liviano: no reseed global por cada cliente nuevo.
+        # Solo asegura/usa CLIENT_BASE de la veterinaria y asigna al usuario creado.
+        grupo_client_base, _ = GrupoUsuario.objects.get_or_create(
+            veterinaria=veterinaria,
+            rol_base="CLIENT",
+            defaults={
+                "nombre": "CLIENT_BASE",
+                "descripcion": "Grupo base automatico para clientes moviles.",
+                "estado": True,
+                "es_base": True,
+            },
+        )
+        if not grupo_client_base.estado:
+            grupo_client_base.estado = True
+            grupo_client_base.save(update_fields=["estado"])
+
+        UsuarioGrupo.objects.get_or_create(
+            usuario=user,
+            grupo=grupo_client_base,
+            defaults={"estado": True},
+        )
 
         tokens = get_tokens_for_user(user)
         context = AuthContextService.get_auth_context(user, "MOVIL")
