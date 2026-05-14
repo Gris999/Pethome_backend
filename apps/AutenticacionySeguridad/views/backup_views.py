@@ -203,13 +203,23 @@ class BackupConfigRetrieveUpdateView(TenantViewMixin, generics.RetrieveUpdateAPI
     rbac_component = "SEG_BACKUPS"
 
     def get_object(self):
-        """Retorna la configuración de backup de la veterinaria actual."""
+        """Retorna la configuración de backup de la veterinaria actual o la especificada."""
         tenant = getattr(self.request, "tenant", None)
-        if not tenant:
-            raise Exception("Tenant no encontrado")
+        
+        # Si no hay tenant en el middleware (caso SuperAdmin global)
+        # Intentamos obtenerlo de los parámetros de la consulta
+        veterinaria_id = self.request.query_params.get("veterinaria_id")
+        
+        if not tenant and not veterinaria_id:
+            # Si no es superadmin y no hay tenant, lanzamos error controlado
+            if not getattr(self.request.user, 'is_superuser', False):
+                raise Exception("Tenant no encontrado")
+            return None # Superadmin sin veterinaria especificada aún
 
+        id_to_use = veterinaria_id or tenant.id
+        
         config, created = BackupConfig.objects.get_or_create(
-            veterinaria_id=tenant.id
+            veterinaria_id=id_to_use
         )
         return config
 

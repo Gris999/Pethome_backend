@@ -31,6 +31,10 @@ class GrupoUsuarioListCreateView(generics.ListCreateAPIView):
     rbac_component = "SEG_GRUPO_USUARIO"
 
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, "is_superuser", False):
+            return GrupoUsuario.objects.all().order_by("nombre")
+        
         return GrupoUsuario.objects.filter(
             veterinaria_id=_tenant_id(self.request)
         ).order_by("nombre")
@@ -74,6 +78,10 @@ class GrupoUsuarioDetailView(generics.RetrieveUpdateDestroyAPIView):
     rbac_component = "SEG_GRUPO_USUARIO"
 
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, "is_superuser", False):
+            return GrupoUsuario.objects.all()
+            
         return GrupoUsuario.objects.filter(
             veterinaria_id=_tenant_id(self.request)
         )
@@ -145,10 +153,15 @@ class GrupoPermisoComponenteListCreateView(generics.ListCreateAPIView):
     rbac_component = "SEG_PERMISO_COMPONENTE"
 
     def get_queryset(self):
+        user = self.request.user
         tenant_id = _tenant_id(self.request)
-        queryset = GrupoPermisoComponente.objects.filter(
-            grupo__veterinaria_id=tenant_id
-        ).select_related("grupo", "componente")
+        
+        if getattr(user, "is_superuser", False):
+            queryset = GrupoPermisoComponente.objects.all().select_related("grupo", "componente")
+        else:
+            queryset = GrupoPermisoComponente.objects.filter(
+                grupo__veterinaria_id=tenant_id
+            ).select_related("grupo", "componente")
 
         grupo_id = self.request.query_params.get("grupo_id")
         if grupo_id:
@@ -200,6 +213,10 @@ class GrupoPermisoComponenteDetailView(generics.RetrieveUpdateDestroyAPIView):
     rbac_component = "SEG_PERMISO_COMPONENTE"
 
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, "is_superuser", False):
+            return GrupoPermisoComponente.objects.all().select_related("grupo", "componente")
+            
         return GrupoPermisoComponente.objects.filter(
             grupo__veterinaria_id=_tenant_id(self.request)
         ).select_related("grupo", "componente")

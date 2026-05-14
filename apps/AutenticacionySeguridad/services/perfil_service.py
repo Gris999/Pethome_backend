@@ -33,7 +33,7 @@ def create_user_with_profile(
     if User.objects.filter(correo=correo).exists():
         raise serializers.ValidationError({"correo": "El correo ya está registrado."})
 
-    if not veterinaria_id:
+    if not veterinaria_id and rol.nombre != "SUPERADMIN":
         raise serializers.ValidationError({
             "veterinaria": "No se pudo resolver la veterinaria del usuario."
         })

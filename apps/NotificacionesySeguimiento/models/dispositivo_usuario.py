@@ -19,7 +19,9 @@ class DispositivoUsuario(models.Model):
         Veterinaria,
         on_delete=models.CASCADE,
         db_column="id_veterinaria",
-        related_name="dispositivos"
+        related_name="dispositivos",
+        null=True,
+        blank=True
     )
     token_fcm = models.TextField(unique=True)
     plataforma = models.CharField(
