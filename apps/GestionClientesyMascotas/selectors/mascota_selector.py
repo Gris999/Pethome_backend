@@ -10,10 +10,16 @@ class MascotaSelector:
         """
         Retorna las mascotas de una veterinaria. 
         Si el usuario es un cliente, solo retorna sus mascotas.
+        Si es Super Admin, retorna todas las mascotas.
         """
-        queryset = Mascota.objects.filter(veterinaria_id=veterinaria_id).select_related(
-            "usuario", "especie", "raza"
-        )
+        if user and getattr(user, "is_superuser", False):
+            queryset = Mascota.objects.all().select_related(
+                "usuario", "especie", "raza"
+            )
+        else:
+            queryset = Mascota.objects.filter(veterinaria_id=veterinaria_id).select_related(
+                "usuario", "especie", "raza"
+            )
         
         if user and hasattr(user, "role") and user.role.nombre == Rol.RolName.CLIENT:
             queryset = queryset.filter(usuario=user)
@@ -22,7 +28,10 @@ class MascotaSelector:
 
     @staticmethod
     def get_mascota_detail(pk, veterinaria_id, user=None):
-        queryset = Mascota.objects.filter(pk=pk, veterinaria_id=veterinaria_id)
+        if user and getattr(user, "is_superuser", False):
+            queryset = Mascota.objects.filter(pk=pk)
+        else:
+            queryset = Mascota.objects.filter(pk=pk, veterinaria_id=veterinaria_id)
         
         if user and hasattr(user, "role") and user.role.nombre == Rol.RolName.CLIENT:
             queryset = queryset.filter(usuario=user)

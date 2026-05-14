@@ -1,5 +1,7 @@
+from django.db.models import Q
 from ..models.componente_sistema import ComponenteSistema
 from ..models.grupo_permiso_componente import GrupoPermisoComponente
+from ..models.grupo_usuario import GrupoUsuario
 
 
 class ComponenteSelector:
@@ -14,12 +16,6 @@ class ComponenteSelector:
         if user.is_superuser:
             componentes = ComponenteSistema.objects.filter(
                 estado=True, plataforma__in=[plataforma, "AMBOS"]
-            ).exclude(
-                codigo__startswith="CLI_"
-            ).exclude(
-                codigo__startswith="SERV_"
-            ).exclude(
-                codigo__startswith="INV_"
             ).order_by("orden")
             
             return [
@@ -50,7 +46,10 @@ class ComponenteSelector:
             GrupoPermisoComponente.objects.filter(
                 estado=True,
                 grupo__estado=True,
-                grupo__veterinaria_id=user.veterinaria_id,
+                # Permisos de grupos de la veterinaria o grupos globales
+                grupo__id_grupo__in=GrupoUsuario.objects.filter(
+                    Q(veterinaria_id=user.veterinaria_id) | Q(veterinaria_id__isnull=True)
+                ).values_list("id_grupo", flat=True),
                 grupo__usuarios_asignados__usuario=user,
                 grupo__usuarios_asignados__estado=True,
                 componente__estado=True,

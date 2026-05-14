@@ -28,6 +28,7 @@ class PerfilCreateSerializer(serializers.ModelSerializer):
     id_rol = serializers.IntegerField(write_only=True)
     estado = serializers.BooleanField(write_only=True, required=False)
     is_active = serializers.BooleanField(write_only=True, required=False)
+    id_veterinaria = serializers.IntegerField(write_only=True, required=False)
 
     class Meta:
         model = Perfil
@@ -39,13 +40,18 @@ class PerfilCreateSerializer(serializers.ModelSerializer):
             "is_active",
             "nombre", 
             "telefono", 
-            "direccion"
+            "direccion",
+            "id_veterinaria"
         ]
 
     def create(self, validated_data):
         request = self.context.get("request")
         tenant = getattr(request, "tenant", None) if request else None
-        veterinaria_id = getattr(tenant, "id", None)
+        
+        # Prioridad: 1. El ID enviado en el body, 2. El ID del tenant actual
+        veterinaria_id = validated_data.pop("id_veterinaria", None)
+        if not veterinaria_id:
+            veterinaria_id = getattr(tenant, "id", None)
 
         estado = validated_data.pop("estado", None)
         is_active = validated_data.pop("is_active", None)

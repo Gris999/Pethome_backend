@@ -14,8 +14,8 @@ class GrupoUsuario(models.Model):
         db_column="id_veterinaria",
         on_delete=models.CASCADE,
         related_name="grupos_usuario",
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
 
     class Meta:

@@ -23,11 +23,12 @@ class PerfilSelector:
         return queryset.filter(id_perfil=perfil_id).first()
 
     @staticmethod
-    def filter_perfiles(veterinaria_id, search=None, rol=None, estado=None):
-        """Aplica filtros complejos de búsqueda sobre los perfiles de una veterinaria."""
-        queryset = Perfil.objects.select_related("usuario", "usuario__role").filter(
-            usuario__veterinaria_id=veterinaria_id
-        )
+    def filter_perfiles(veterinaria_id=None, search=None, rol=None, estado=None):
+        """Aplica filtros complejos de búsqueda sobre los perfiles."""
+        queryset = Perfil.objects.select_related("usuario", "usuario__role")
+        
+        if veterinaria_id:
+            queryset = queryset.filter(usuario__veterinaria_id=veterinaria_id)
 
         if search:
             queryset = queryset.filter(

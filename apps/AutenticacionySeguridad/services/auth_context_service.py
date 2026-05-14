@@ -32,7 +32,7 @@ class AuthContextService:
         
         # Obtener nombre del perfil si existe
         perfil = getattr(user, 'perfil', None)
-        nombre_usuario = perfil.nombre if perfil else (user.first_name or user.correo)
+        nombre_usuario = perfil.nombre if perfil else user.correo
 
         contexto = {
             "usuario": {
