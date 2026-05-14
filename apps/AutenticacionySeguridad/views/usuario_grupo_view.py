@@ -16,6 +16,10 @@ class UsuarioGrupoListCreateView(TenantViewMixin, generics.ListCreateAPIView):
     rbac_component = "SEG_GRUPO_USUARIO"
 
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, "is_superuser", False):
+            return UsuarioGrupo.objects.all().select_related("usuario", "grupo")
+            
         return UsuarioGrupo.objects.filter(
             grupo__veterinaria_id=self.get_tenant_id()
         ).select_related("usuario", "grupo")
@@ -44,6 +48,10 @@ class UsuarioGrupoDeleteView(TenantViewMixin, generics.DestroyAPIView):
     lookup_field = "pk"
 
     def get_queryset(self):
+        user = self.request.user
+        if getattr(user, "is_superuser", False):
+            return UsuarioGrupo.objects.all()
+            
         return UsuarioGrupo.objects.filter(
             grupo__veterinaria_id=self.get_tenant_id()
         )

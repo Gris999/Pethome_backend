@@ -226,7 +226,7 @@ class BackupConfigRetrieveUpdateView(TenantViewMixin, generics.RetrieveUpdateAPI
     rbac_component = "SEG_BACKUPS"
 
     def get_object(self):
-        """Retorna la configuración de backup de la veterinaria actual."""
+        """Retorna la configuración de backup de la veterinaria actual o la especificada."""
         tenant = getattr(self.request, "tenant", None)
         veterinaria_id = getattr(tenant, "id", None) if tenant else None
 

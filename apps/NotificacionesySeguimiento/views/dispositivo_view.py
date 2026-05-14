@@ -20,18 +20,28 @@ class DispositivoUsuarioViewSet(viewsets.GenericViewSet):
         if not token_fcm:
             return Response({"error": "token_fcm es requerido"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 1. Limpieza absoluta: Un token solo puede pertenecer a un usuario en todo el sistema.
-        # Si este token ya existe, lo borramos de raíz para evitar cruces.
-        DispositivoUsuario.objects.filter(token_fcm=token_fcm).delete()
-
-        # 2. Registrar el nuevo vínculo limpio
-        dispositivo = DispositivoUsuario.objects.create(
-            token_fcm=token_fcm,
-            usuario=request.user,
-            veterinaria=request.user.veterinaria,
-            plataforma=plataforma,
-            activo=True
-        )
+        # 1. Registrar o actualizar usando update_or_create para evitar race conditions
+        try:
+            dispositivo, created = DispositivoUsuario.objects.update_or_create(
+                token_fcm=token_fcm,
+                defaults={
+                    "usuario": request.user,
+                    "veterinaria": request.user.veterinaria,
+                    "plataforma": plataforma,
+                    "activo": True
+                }
+            )
+        except Exception:
+            # En caso de colisión extrema, intentamos recuperar el existente
+            dispositivo = DispositivoUsuario.objects.filter(token_fcm=token_fcm).first()
+            if dispositivo:
+                dispositivo.usuario = request.user
+                dispositivo.veterinaria = request.user.veterinaria
+                dispositivo.plataforma = plataforma
+                dispositivo.activo = True
+                dispositivo.save()
+            else:
+                return Response({"error": "Error al registrar dispositivo"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(
             {"message": "Dispositivo registrado exitosamente", "id": dispositivo.id_dispositivo},
