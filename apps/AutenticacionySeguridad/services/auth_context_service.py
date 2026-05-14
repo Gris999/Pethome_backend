@@ -31,8 +31,9 @@ class AuthContextService:
         componentes_arbol = ComponenteTreeService.build_context_tree(componentes_planos)
         
         # Obtener nombre del perfil si existe
-        perfil = getattr(user, 'perfil', None)
-        nombre_usuario = perfil.nombre if perfil else (user.first_name or user.correo)
+        perfil = getattr(user, "perfil", None)
+        # User personalizado no define `first_name`; usar perfil y luego correo como fallback seguro.
+        nombre_usuario = getattr(perfil, "nombre", None) or user.correo
 
         contexto = {
             "usuario": {

@@ -15,9 +15,12 @@ def initialize_firebase():
         if firebase_admin._apps:
             return
 
-        # Ruta al archivo JSON (proporcionada por el usuario)
-        # Se asume que está en la raíz del backend como indicó el usuario
-        cred_path = os.path.join(settings.BASE_DIR, "pet-home-25068-firebase-adminsdk-fbsvc-ab68fcca46.json")
+        # Ruta del JSON de cuenta de servicio:
+        # 1) variable de entorno GOOGLE_APPLICATION_CREDENTIALS
+        # 2) archivo por defecto en raíz del backend
+        cred_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") or os.path.join(
+            settings.BASE_DIR, "pet-home-25068-firebase-adminsdk-fbsvc-ab68fcca46.json"
+        )
 
         if os.path.exists(cred_path):
             cred = credentials.Certificate(cred_path)

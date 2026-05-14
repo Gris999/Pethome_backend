@@ -4,12 +4,14 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.exceptions import ValidationError
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from ..models.backup_restore import BackupRestore
 from ..models.backup_config import BackupConfig
+from ..models.veterinaria import Veterinaria
 from ..serializers.backup_serializers import BackupRestoreSerializer, BackupConfigSerializer
 from ..filters.backup_filters import BackupRestoreFilter
 from ..permissions.tenant_rbac import HasComponentPermission
@@ -43,8 +45,17 @@ class BackupRestoreViewSet(TenantViewMixin, viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         """Retorna backups/restores de la veterinaria actual del usuario."""
         tenant = getattr(self.request, "tenant", None)
-        if tenant:
-            return BackupRestore.objects.filter(veterinaria_id=tenant.id).select_related(
+        veterinaria_id = getattr(tenant, "id", None) if tenant else None
+
+        # Soporte para superadmin sin tenant activo.
+        if not veterinaria_id and getattr(self.request.user, "is_superuser", False):
+            veterinaria_id = self.request.query_params.get("veterinaria_id")
+            if not veterinaria_id:
+                # Si no viene filtro explícito, mostrar historial global para superadmin.
+                return BackupRestore.objects.all().select_related("usuario", "veterinaria")
+
+        if veterinaria_id:
+            return BackupRestore.objects.filter(veterinaria_id=veterinaria_id).select_related(
                 "usuario", "veterinaria"
             )
         return BackupRestore.objects.none()
@@ -81,20 +92,32 @@ class BackupCreateView(TenantViewMixin, generics.CreateAPIView):
         """Crea un backup manual de la BD."""
         try:
             tenant = getattr(request, "tenant", None)
-            if not tenant:
-                return Response(
-                    {"error": "Tenant no encontrado"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
             motivo = request.data.get("motivo", "Backup manual")
+            scope = str(request.data.get("scope", "TENANT")).upper()
+            es_superuser = getattr(request.user, "is_superuser", False)
+
+            if scope == "GLOBAL":
+                if not es_superuser:
+                    return Response(
+                        {"error": "Solo un superuser puede crear backups globales"},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+                veterinaria_id = request.data.get("veterinaria_id") or 0
+            else:
+                if not tenant:
+                    return Response(
+                        {"error": "Tenant no encontrado"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                veterinaria_id = tenant.id
 
             # Llamar servicio de backup
             backup = BackupService.create_backup(
-                veterinaria_id=tenant.id,
+                veterinaria_id=veterinaria_id,
                 usuario=request.user,
                 request=request,
                 motivo=motivo,
+                scope=scope,
             )
 
             if backup:
@@ -205,11 +228,20 @@ class BackupConfigRetrieveUpdateView(TenantViewMixin, generics.RetrieveUpdateAPI
     def get_object(self):
         """Retorna la configuración de backup de la veterinaria actual."""
         tenant = getattr(self.request, "tenant", None)
-        if not tenant:
-            raise Exception("Tenant no encontrado")
+        veterinaria_id = getattr(tenant, "id", None) if tenant else None
+
+        # Soporte para superadmin sin tenant activo: permite elegir veterinaria por query param.
+        if not veterinaria_id and getattr(self.request.user, "is_superuser", False):
+            veterinaria_id = self.request.query_params.get("veterinaria_id")
+
+        if not veterinaria_id:
+            raise ValidationError({"detail": "Tenant no encontrado.", "code": "TENANT_NO_ENCONTRADO"})
+
+        if not Veterinaria.objects.filter(id_veterinaria=veterinaria_id, estado=True).exists():
+            raise ValidationError({"detail": "Veterinaria no encontrada o inactiva.", "code": "VETERINARIA_INVALIDA"})
 
         config, created = BackupConfig.objects.get_or_create(
-            veterinaria_id=tenant.id
+            veterinaria_id=veterinaria_id
         )
         return config
 
