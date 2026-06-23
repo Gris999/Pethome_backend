@@ -14,6 +14,10 @@ from .views.mascota_perfil_view import (
     MascotaHistorialServiciosView,
     MascotasMeView,
 )
+from .views.analisis_imagen_mascota_view import (
+    AnalisisImagenMascotaDetailView,
+    AnalisisImagenMascotaListCreateView,
+)
 from .views.usuario_view import UsuarioListView
 from apps.GestionServiciosyReserva.views.especie_raza_view import (
     EspecieListCreateView,
@@ -39,6 +43,8 @@ urlpatterns = [
     path("mascotas/<int:id_mascota>/perfil/", MascotaPerfilView.as_view(), name="mascota-perfil"),
     path("mascotas/<int:id_mascota>/historial-clinico/", MascotaHistorialClinicoView.as_view(), name="mascota-historial-clinico"),
     path("mascotas/<int:id_mascota>/historial/", MascotaHistorialServiciosView.as_view(), name="mascota-historial-servicios"),
+    path("mascotas/<int:id_mascota>/analisis-imagen/", AnalisisImagenMascotaListCreateView.as_view(), name="mascota-analisis-imagen"),
+    path("analisis-imagen/<int:id_analisis>/", AnalisisImagenMascotaDetailView.as_view(), name="analisis-imagen-detail"),
     path("", include(router.urls)),
 
     # COMPATIBILIDAD MÓVIL (mantenemos rutas legacy tras refactor a GestionServiciosyReserva)

@@ -216,7 +216,7 @@ PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES = config(
     default=30,
     cast=int,
 )
-FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="http://127.0.0.1:3000")
+FRONTEND_BASE_URL = config("FRONTEND_BASE_URL", default="https://pet-home-blond.vercel.app")
 PASSWORD_RESET_URL_TEMPLATE = config(
     "PASSWORD_RESET_URL_TEMPLATE",
     default="{frontend_base_url}/reset-password?token={token}",
@@ -246,5 +246,6 @@ if not BITACORA_SECRET_KEYS:
 #OPENROUTER
 OPENROUTER_API_KEY = config("OPENROUTER_API_KEY", "")
 OPENROUTER_MODEL = config("OPENROUTER_MODEL", "google/gemini-2.0-flash-001")
+OPENROUTER_VISION_MODEL = config("OPENROUTER_VISION_MODEL", default=OPENROUTER_MODEL)
 OPENROUTER_SITE_URL = config("OPENROUTER_SITE_URL", "http://localhost:8000")
 OPENROUTER_SITE_NAME = config("OPENROUTER_SITE_NAME", "PetHome Chatbot")
