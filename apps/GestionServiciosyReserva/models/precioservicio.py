@@ -9,7 +9,7 @@ class PrecioServicio(models.Model):
         on_delete=models.CASCADE,
         related_name="precios"
     )
-
+##sdadsads
     variacion = models.CharField(
         max_length=50,
         default="General",
