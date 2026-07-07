@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from rest_framework import status
@@ -206,6 +206,64 @@ class CarritoTemporalMobileTests(APITestCase):
 
         stock_despues = StockPunto.objects.get(producto=self.producto_a, veterinaria=self.vet_a).cantidad
         self.assertEqual(stock_despues, stock_antes)
+
+    def test_agregar_producto_acepta_stock_en_lote_vigente(self):
+        StockPunto.objects.filter(
+            producto=self.producto_a,
+            veterinaria=self.vet_a,
+        ).delete()
+        StockPunto.objects.create(
+            punto_inventario=self.punto_a,
+            producto=self.producto_a,
+            veterinaria=self.vet_a,
+            cantidad=Decimal("5.00"),
+            cantidad_minima=Decimal("1.00"),
+            numero_lote="LOTE-VIGENTE",
+            fecha_vencimiento_lote=timezone.localdate() + timedelta(days=30),
+        )
+        self.client.force_login(self.client_a)
+
+        response = self.client.post(
+            "/api/gestion/ventas-pagos/carrito/items/",
+            {
+                "tipo_item": "PRODUCTO",
+                "producto": self.producto_a.id_producto,
+                "cantidad": "2",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data["detalles"]), 1)
+
+    def test_agregar_producto_rechaza_stock_en_lote_vencido(self):
+        StockPunto.objects.filter(
+            producto=self.producto_a,
+            veterinaria=self.vet_a,
+        ).delete()
+        StockPunto.objects.create(
+            punto_inventario=self.punto_a,
+            producto=self.producto_a,
+            veterinaria=self.vet_a,
+            cantidad=Decimal("5.00"),
+            cantidad_minima=Decimal("1.00"),
+            numero_lote="LOTE-VENCIDO",
+            fecha_vencimiento_lote=timezone.localdate() - timedelta(days=1),
+        )
+        self.client.force_login(self.client_a)
+
+        response = self.client.post(
+            "/api/gestion/ventas-pagos/carrito/items/",
+            {
+                "tipo_item": "PRODUCTO",
+                "producto": self.producto_a.id_producto,
+                "cantidad": "1",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("stock", str(response.data).lower())
 
     def test_agregar_servicio_sin_mascota_devuelve_error(self):
         self.client.force_login(self.client_a)

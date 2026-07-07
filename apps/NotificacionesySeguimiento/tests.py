@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 
 from django.test import override_settings
 from django.utils import timezone
@@ -7,6 +8,12 @@ from rest_framework.test import APITestCase
 
 from apps.AutenticacionySeguridad.models import Rol, User, Veterinaria
 from apps.GestionClientesyMascotas.models import Mascota
+from apps.GestionInventarioProveedores.models import (
+    CategoriaProducto,
+    Producto,
+    PuntoInventario,
+    StockPunto,
+)
 from apps.GestionServiciosyReserva.models import (
     CategoriaServicio,
     Cita,
@@ -17,7 +24,7 @@ from apps.GestionServiciosyReserva.models import (
 )
 from apps.GestionarClinicaVeterinaria.models import ConsultaClinica, HistorialClinico
 
-from .models import Pedido, Seguimiento
+from .models import DetallePedido, Pedido, Seguimiento
 
 FERNET_TEST_KEY = "y-8vRXvZL5t7I8S_dZd2a0B7aKXzH_kL8BkpE9SLiW8="
 
@@ -402,6 +409,54 @@ class CU33SeguimientoPedidosAccessTests(APITestCase):
         self.assertEqual(len(response.data["seguimientos"]), 1)
         self.assertEqual(response.data["seguimientos"][0]["estado_actual"], "PENDIENTE")
         self.assertTrue(response.data["seguimientos"][0]["visible_cliente"])
+
+    def test_06b_client_can_reorder_own_order_products(self):
+        categoria = CategoriaProducto.objects.create(
+            nombre="Alimentos CU33",
+            veterinaria=self.vet_a,
+        )
+        producto = Producto.objects.create(
+            categoria_producto=categoria,
+            nombre="Croquetas CU33",
+            precio_venta=25,
+            visible_catalogo=True,
+            estado=True,
+            veterinaria=self.vet_a,
+        )
+        punto = PuntoInventario.objects.create(
+            veterinaria=self.vet_a,
+            tipo=PuntoInventario.TipoPunto.ALMACEN_GENERAL,
+            nombre="Almacen CU33",
+        )
+        StockPunto.objects.create(
+            veterinaria=self.vet_a,
+            punto_inventario=punto,
+            producto=producto,
+            cantidad=Decimal("10"),
+        )
+        DetallePedido.objects.create(
+            pedido=self.pedido_a_cliente,
+            producto=producto,
+            cantidad=2,
+            precio_unitario=25,
+            subtotal=50,
+        )
+
+        self.client.force_login(self.client_a)
+        response = self.client.post(
+            f"/api/gestion/notificaciones/pedidos/{self.pedido_a_cliente.id_pedido}/recomprar/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["agregados"]), 1)
+        self.assertEqual(response.data["agregados"][0]["id_producto"], producto.id_producto)
+        self.assertEqual(response.data["no_disponibles"], [])
+        self.assertEqual(
+            response.data["carrito"]["detalles"][0]["producto"],
+            producto.id_producto,
+        )
 
     def test_07_admin_sees_data_of_own_tenant(self):
         self.client.force_login(self.admin_a)

@@ -1,7 +1,19 @@
+from decimal import Decimal
+
+from django.db.models import DecimalField, Q, Sum
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 from rest_framework import serializers
 
 from apps.AutenticacionySeguridad.models import Veterinaria
-from apps.GestionInventarioProveedores.models import CategoriaProducto, Producto, Proveedor
+from apps.GestionInventarioProveedores.models import (
+    CategoriaProducto,
+    Producto,
+    ProductoFavorito,
+    Proveedor,
+    PuntoInventario,
+    StockPunto,
+)
 
 
 class EstadoField(serializers.Field):
@@ -44,6 +56,9 @@ class ProductoSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    es_favorito = serializers.SerializerMethodField()
+    stock_disponible = serializers.SerializerMethodField()
+    tiene_stock = serializers.SerializerMethodField()
 
     class Meta:
         model = Producto
@@ -72,6 +87,9 @@ class ProductoSerializer(serializers.ModelSerializer):
             "promocion_fecha_fin",
             "categoria_nombre",
             "proveedor_nombre",
+            "es_favorito",
+            "stock_disponible",
+            "tiene_stock",
             "id_categoria_producto",
             "id_proveedor",
             "id_veterinaria",
@@ -187,3 +205,50 @@ class ProductoSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
+
+    def get_es_favorito(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is None or not getattr(user, "is_authenticated", False):
+            return False
+
+        tenant = getattr(request, "tenant", None)
+        tenant_id = getattr(tenant, "id", None) or getattr(user, "veterinaria_id", None)
+        if not tenant_id:
+            return False
+
+        return ProductoFavorito.objects.filter(
+            usuario=user,
+            producto=obj,
+            veterinaria_id=tenant_id,
+        ).exists()
+
+    def get_stock_disponible(self, obj):
+        cached = getattr(obj, "stock_disponible_catalogo", None)
+        if cached is not None:
+            return cached
+        return (
+            StockPunto.objects.filter(
+                veterinaria_id=obj.veterinaria_id,
+                producto=obj,
+                punto_inventario__estado=True,
+                punto_inventario__tipo=PuntoInventario.TipoPunto.ALMACEN_GENERAL,
+                cantidad__gt=0,
+            )
+            .filter(
+                Q(fecha_vencimiento_lote__isnull=True)
+                | Q(fecha_vencimiento_lote__gt=timezone.localdate())
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("cantidad"),
+                    Decimal("0"),
+                    output_field=DecimalField(max_digits=12, decimal_places=2),
+                )
+            )
+            .get("total")
+            or Decimal("0")
+        )
+
+    def get_tiene_stock(self, obj):
+        return self.get_stock_disponible(obj) > 0

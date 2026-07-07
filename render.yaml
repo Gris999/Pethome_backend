@@ -59,3 +59,26 @@ services:
         value: "pg_dump"
       - key: PSQL_PATH
         value: "psql"
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+
+  - type: cron
+    name: homepet-recordatorios
+    runtime: python
+    runtimeVersion: "3.11"
+    schedule: "*/5 * * * *"
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python manage.py procesar_recordatorios"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: "False"
+      - key: DATABASE_URL
+        sync: false
+      - key: BITACORA_SECRET_KEY
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false

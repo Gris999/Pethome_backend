@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 from django.db import transaction
+from django.db.models import F, Q
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.GestionInventarioProveedores.models import (
@@ -110,6 +112,62 @@ class InventoryMovementService:
             )
 
         raise ValidationError({"tipo": "Tipo de movimiento no soportado."})
+
+    @classmethod
+    @transaction.atomic
+    def register_outflow_fefo(
+        cls,
+        *,
+        veterinaria_id: int,
+        usuario,
+        producto,
+        cantidad: Decimal,
+        punto_origen: PuntoInventario,
+        motivo: str | None = None,
+    ) -> list[MovimientoInventario]:
+        if cantidad <= 0:
+            raise ValidationError({"cantidad": "La cantidad debe ser mayor a cero."})
+
+        cls._validate_tenant(veterinaria_id, producto, punto_origen, None)
+        stocks = list(
+            StockPunto.objects.select_for_update()
+            .filter(
+                veterinaria_id=veterinaria_id,
+                producto=producto,
+                punto_inventario=punto_origen,
+                cantidad__gt=0,
+            )
+            .filter(
+                Q(fecha_vencimiento_lote__isnull=True)
+                | Q(fecha_vencimiento_lote__gt=timezone.localdate())
+            )
+            .order_by(F("fecha_vencimiento_lote").asc(nulls_last=True), "id_stock")
+        )
+        disponible = sum((stock.cantidad for stock in stocks), Decimal("0"))
+        if disponible < cantidad:
+            raise ValidationError({"detail": "Stock insuficiente para realizar el movimiento."})
+
+        restante = cantidad
+        movimientos = []
+        for stock in stocks:
+            if restante <= 0:
+                break
+            descuento = min(stock.cantidad, restante)
+            movimientos.append(
+                cls._apply_decrement(
+                    veterinaria_id=veterinaria_id,
+                    usuario=usuario,
+                    producto=producto,
+                    tipo=MovimientoInventario.TipoMovimiento.SALIDA,
+                    cantidad=descuento,
+                    numero_lote=stock.numero_lote,
+                    fecha_vencimiento_lote=stock.fecha_vencimiento_lote,
+                    punto_origen=punto_origen,
+                    motivo=motivo,
+                )
+            )
+            restante -= descuento
+        return movimientos
 
     @classmethod
     def _validate_tenant(cls, veterinaria_id, producto, punto_origen, punto_destino):

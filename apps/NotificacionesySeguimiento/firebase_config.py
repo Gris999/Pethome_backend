@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 import firebase_admin
 from firebase_admin import credentials
@@ -13,6 +14,13 @@ def initialize_firebase():
     try:
         # Si ya está inicializado, no hacer nada
         if firebase_admin._apps:
+            return
+
+        credentials_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
+        if credentials_json:
+            cred = credentials.Certificate(json.loads(credentials_json))
+            firebase_admin.initialize_app(cred)
+            logger.info("Firebase Admin SDK inicializado desde variable de entorno.")
             return
 
         # Ruta del JSON de cuenta de servicio:

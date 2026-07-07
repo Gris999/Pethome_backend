@@ -138,6 +138,32 @@ Para valores sensibles como `SECRET_KEY`:
 - Para aumentar capacidad: Cambia el **Plan** en **Settings**
 - Para auto-scaling: Usa Render Plus
 
+## Recordatorios y Firebase
+
+El `render.yaml` incluye el cron `homepet-recordatorios`, que ejecuta cada cinco
+minutos:
+
+```bash
+python manage.py procesar_recordatorios
+```
+
+Configura en el servicio web y en el cron las mismas variables `DATABASE_URL`,
+`SECRET_KEY`, `BITACORA_SECRET_KEY` y `FIREBASE_CREDENTIALS_JSON`.
+`FIREBASE_CREDENTIALS_JSON` debe contener el JSON completo de la cuenta de
+servicio Firebase como secreto, sin subir el archivo de credenciales al
+repositorio.
+
+Antes del despliegue puede verificarse el procesamiento sin escribir datos:
+
+```bash
+python manage.py procesar_recordatorios --dry-run
+```
+
+Tras desplegar, crea un recordatorio proximo con `notificar=true`, confirma que
+el dispositivo Android quedo registrado y revisa el log del cron. El
+recordatorio siempre crea una notificacion interna; el push requiere ademas un
+token FCM activo y credenciales Firebase validas.
+
 ## Monitoreo
 
 - **Logs**: Ve a **Logs** en el dashboard para monitoreo en tiempo real

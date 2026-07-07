@@ -5,3 +5,4 @@ from .punto_inventario import PuntoInventario
 from .unidad_movil_punto import UnidadMovilPunto
 from .stock_punto import StockPunto
 from .movimiento_inventario import MovimientoInventario
+from .producto_favorito import ProductoFavorito

@@ -1,12 +1,13 @@
 from decimal import Decimal
 
 from django.db import IntegrityError, transaction
-from django.db.models import DecimalField, Sum
+from django.db.models import DecimalField, Q, Sum
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 from rest_framework.exceptions import NotFound, ValidationError
 
 from apps.AutenticacionySeguridad.enums.roles import RoleEnum
-from apps.GestionInventarioProveedores.models import StockPunto
+from apps.GestionInventarioProveedores.models import PuntoInventario, StockPunto
 from apps.GestiondeVentasyPagos.models import CarritoTemporal, DetalleCarritoTemporal
 
 
@@ -154,7 +155,13 @@ class CarritoService:
             StockPunto.objects.filter(
                 veterinaria_id=tenant_id,
                 producto_id=producto.id_producto,
-                numero_lote__isnull=True,
+                punto_inventario__estado=True,
+                punto_inventario__tipo=PuntoInventario.TipoPunto.ALMACEN_GENERAL,
+                cantidad__gt=0,
+            )
+            .filter(
+                Q(fecha_vencimiento_lote__isnull=True)
+                | Q(fecha_vencimiento_lote__gt=timezone.localdate())
             )
             .aggregate(total=Coalesce(Sum("cantidad"), Decimal("0"), output_field=DecimalField(max_digits=12, decimal_places=2)))
             .get("total")

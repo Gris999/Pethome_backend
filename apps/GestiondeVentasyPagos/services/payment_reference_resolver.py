@@ -1,6 +1,9 @@
 import logging
 from decimal import Decimal
 from django.db import transaction
+from django.db.models import DecimalField, Q, Sum
+from django.db.models.functions import Coalesce
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from apps.GestiondeVentasyPagos.models import Venta
@@ -8,7 +11,7 @@ from apps.NotificacionesySeguimiento.models import Pedido
 from apps.NotificacionesySeguimiento.services.pedido_tracking_service import PedidoTrackingService
 from apps.GestionServiciosyReserva.models import Cita
 from apps.AutenticacionySeguridad.models import BillingDemoEvent, Suscripcion
-from apps.GestionInventarioProveedores.models import PuntoInventario, StockPunto, MovimientoInventario
+from apps.GestionInventarioProveedores.models import PuntoInventario, StockPunto
 from apps.GestionInventarioProveedores.services.inventario_movimiento_service import InventoryMovementService
 from apps.GestiondeVentasyPagos.services.carrito_service import CarritoService
 
@@ -73,11 +76,10 @@ class PaymentReferenceResolver:
             # Registrar salida de inventario para los productos del pedido
             usuario_responsable = user or pedido.usuario
             for detalle in pedido.detalles.filter(estado=True):
-                InventoryMovementService.register_movement(
+                InventoryMovementService.register_outflow_fefo(
                     veterinaria_id=tenant_id,
                     usuario=usuario_responsable,
                     producto=detalle.producto,
-                    tipo=MovimientoInventario.TipoMovimiento.SALIDA,
                     cantidad=Decimal(str(detalle.cantidad)),
                     punto_origen=punto_almacen,
                     motivo=f"Despacho Pedido Móvil #{pedido.id_pedido}",
@@ -137,13 +139,27 @@ class PaymentReferenceResolver:
 
         for detalle in pedido.detalles.filter(estado=True):
             producto = detalle.producto
-            stock = StockPunto.objects.filter(
-                veterinaria_id=tenant_id,
-                punto_inventario=punto_almacen,
-                producto=producto,
-                numero_lote__isnull=True,
-            ).first()
-            cantidad_disponible = stock.cantidad if stock else Decimal("0")
+            cantidad_disponible = (
+                StockPunto.objects.filter(
+                    veterinaria_id=tenant_id,
+                    punto_inventario=punto_almacen,
+                    producto=producto,
+                    cantidad__gt=0,
+                )
+                .filter(
+                    Q(fecha_vencimiento_lote__isnull=True)
+                    | Q(fecha_vencimiento_lote__gt=timezone.localdate())
+                )
+                .aggregate(
+                    total=Coalesce(
+                        Sum("cantidad"),
+                        Decimal("0"),
+                        output_field=DecimalField(max_digits=12, decimal_places=2),
+                    )
+                )
+                .get("total")
+                or Decimal("0")
+            )
             if cantidad_disponible < Decimal(str(detalle.cantidad)):
                 return False, f"Stock insuficiente para {producto.nombre} (Disponible: {cantidad_disponible}, Requerido: {detalle.cantidad})."
         

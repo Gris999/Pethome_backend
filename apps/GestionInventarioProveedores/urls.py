@@ -11,6 +11,13 @@ from apps.GestionInventarioProveedores.views.inventario_movimiento_view import I
 from apps.GestionInventarioProveedores.views.inventario_stock_view import InventarioStockViewSet
 from apps.GestionInventarioProveedores.views.punto_inventario_view import PuntoInventarioViewSet
 from apps.GestionInventarioProveedores.views.alertas_inventario_view import AlertasInventarioViewSet
+from apps.GestionInventarioProveedores.views.producto_favorito_view import (
+    ProductoFavoritoDeleteView,
+    ProductoFavoritoListCreateView,
+)
+from apps.GestionInventarioProveedores.views.producto_recomendacion_view import (
+    ProductoRecomendacionMascotaView,
+)
 
 producto_list = ProductoViewSet.as_view({
     "get": "list",
@@ -80,6 +87,9 @@ punto_inventario_list = PuntoInventarioViewSet.as_view({
 urlpatterns = [
     path("unidades-medida/", UnidadMedidaListView.as_view(), name="unidad-medida-list"),
     path("catalogo-publico/", PublicProductoCatalogoListView, name="catalogo-publico-list"),
+    path("favoritos/", ProductoFavoritoListCreateView.as_view(), name="producto-favorito-list-create"),
+    path("favoritos/<int:id_producto>/", ProductoFavoritoDeleteView.as_view(), name="producto-favorito-delete"),
+    path("recomendaciones/", ProductoRecomendacionMascotaView.as_view(), name="producto-recomendaciones-mascota"),
     path("productos/", producto_list, name="producto-list"),
     path("productos/<int:pk>/", producto_detail, name="producto-detail"),
 

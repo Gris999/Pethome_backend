@@ -1,5 +1,7 @@
 from django.db import transaction
+from decimal import Decimal
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -216,3 +218,86 @@ class PedidoDetailView(APIView):
 
         serializer = PedidoDetailSerializer(pedido, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class PedidoRecomprarView(APIView):
+    permission_classes = [IsAuthenticated, HasVeterinariaWithoutSuperadmin]
+
+    @transaction.atomic
+    def post(self, request, id_pedido):
+        pedido = PedidoSelector.get_pedido_detail_for_user(request.user, id_pedido)
+        if pedido is None:
+            return Response(
+                {"detail": "Pedido no encontrado."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        if pedido.usuario_id != request.user.id_usuario:
+            return Response(
+                {"detail": "Solo puedes recomprar tus propios pedidos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        tenant_id = getattr(request.user, "veterinaria_id", None)
+        if not tenant_id:
+            return Response(
+                {"detail": "No se pudo resolver la veterinaria del usuario."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from apps.GestiondeVentasyPagos.models import DetalleCarritoTemporal
+        from apps.GestiondeVentasyPagos.serializers import CarritoReadSerializer
+        from apps.GestiondeVentasyPagos.services import CarritoService
+
+        agregados = []
+        no_disponibles = []
+
+        for detalle in pedido.detalles.select_related("producto").filter(estado=True):
+            producto = detalle.producto
+            if producto is None:
+                no_disponibles.append(
+                    {
+                        "id_producto": None,
+                        "nombre": "Producto no disponible",
+                        "motivo": "El detalle no tiene producto asociado.",
+                    }
+                )
+                continue
+
+            cantidad = Decimal(detalle.cantidad)
+            try:
+                CarritoService.agregar_item(
+                    user=request.user,
+                    tenant_id=tenant_id,
+                    data={
+                        "tipo_item": DetalleCarritoTemporal.TipoItem.PRODUCTO,
+                        "producto": producto,
+                        "cantidad": cantidad,
+                        "observacion": detalle.observacion,
+                    },
+                )
+                agregados.append(
+                    {
+                        "id_producto": producto.id_producto,
+                        "nombre": producto.nombre,
+                        "cantidad": str(cantidad),
+                    }
+                )
+            except ValidationError as error:
+                no_disponibles.append(
+                    {
+                        "id_producto": producto.id_producto,
+                        "nombre": producto.nombre,
+                        "motivo": error.detail,
+                    }
+                )
+
+        carrito = CarritoService.obtener_carrito(user=request.user, tenant_id=tenant_id)
+        return Response(
+            {
+                "carrito": CarritoReadSerializer(carrito).data,
+                "agregados": agregados,
+                "no_disponibles": no_disponibles,
+            },
+            status=status.HTTP_200_OK,
+        )

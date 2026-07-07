@@ -4,3 +4,4 @@ from .proveedor_serializer import *
 from .inventario_movimiento_serializer import *
 from .inventario_stock_serializer import *
 from .alertas_inventario_serializer import *
+from .producto_favorito_serializer import *

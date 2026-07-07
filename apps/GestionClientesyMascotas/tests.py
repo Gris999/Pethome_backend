@@ -1,6 +1,8 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
+from unittest.mock import patch
 
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -15,7 +17,17 @@ from apps.AutenticacionySeguridad.models import (
 	UsuarioGrupo,
 	Veterinaria,
 )
-from apps.GestionClientesyMascotas.models import Especie, Mascota, Raza
+from apps.GestionClientesyMascotas.models import (
+	Especie,
+	Mascota,
+	Raza,
+	RecordatorioMascota,
+	RegistroEvolucionMascota,
+)
+from apps.GestionClientesyMascotas.services.recordatorio_notificacion_service import (
+	RecordatorioNotificacionService,
+)
+from apps.NotificacionesySeguimiento.models import Notificacion
 
 FERNET_TEST_KEY = "y-8vRXvZL5t7I8S_dZd2a0B7aKXzH_kL8BkpE9SLiW8="
 
@@ -165,6 +177,157 @@ class MascotaTenantTests(APITestCase):
 			f"/api/gestion/clientes/mascotas/{self.mascota_b.id_mascota}/perfil-seguimiento/"
 		)
 		self.assertEqual(other_response.status_code, 404)
+
+	def test_recordatorios_create_list_complete_cancel_and_scope_owner(self):
+		self.client.force_login(self.client_a)
+		create_response = self.client.post(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/recordatorios/",
+			{
+				"tipo": "VACUNA",
+				"titulo": "Vacuna antirrabica",
+				"descripcion": "Aplicar refuerzo anual",
+				"fecha_programada": "2026-07-20",
+				"hora_programada": "09:30:00",
+				"notificar": True,
+				"dias_anticipacion": 2,
+			},
+			format="json",
+		)
+		self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+		recordatorio_id = create_response.data["id_recordatorio"]
+		recordatorio = RecordatorioMascota.objects.get(pk=recordatorio_id)
+		self.assertEqual(recordatorio.usuario_id, self.client_a.id_usuario)
+		self.assertEqual(recordatorio.veterinaria_id, self.vet_a.id_veterinaria)
+
+		list_response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/recordatorios/"
+		)
+		self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(len(list_response.data), 1)
+		self.assertEqual(list_response.data[0]["titulo"], "Vacuna antirrabica")
+
+		complete_response = self.client.post(
+			f"/api/gestion/clientes/recordatorios/{recordatorio_id}/completar/"
+		)
+		self.assertEqual(complete_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(complete_response.data["estado"], "COMPLETADO")
+
+		cancel_response = self.client.post(
+			f"/api/gestion/clientes/recordatorios/{recordatorio_id}/cancelar/"
+		)
+		self.assertEqual(cancel_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(cancel_response.data["estado"], "CANCELADO")
+
+		other_pet_response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_b.id_mascota}/recordatorios/"
+		)
+		self.assertEqual(other_pet_response.status_code, status.HTTP_404_NOT_FOUND)
+
+	def test_carnet_digital_returns_payload_and_blocks_other_pet(self):
+		self.client.force_login(self.client_a)
+		response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/carnet-digital/"
+		)
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		self.assertEqual(response.data["mascota"]["id_mascota"], self.mascota_a.id_mascota)
+		self.assertEqual(response.data["duenio"]["id_usuario"], self.client_a.id_usuario)
+		self.assertEqual(response.data["veterinaria"]["id_veterinaria"], self.vet_a.id_veterinaria)
+		self.assertIn("qr_payload", response.data)
+
+		other_response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_b.id_mascota}/carnet-digital/"
+		)
+		self.assertEqual(other_response.status_code, status.HTTP_404_NOT_FOUND)
+
+	@patch(
+		"apps.GestionClientesyMascotas.services.recordatorio_notificacion_service."
+		"NotificationService.enviar_notificacion_push",
+		return_value=False,
+	)
+	def test_recordatorio_notification_is_persistent_and_idempotent(self, push_mock):
+		now = timezone.make_aware(datetime(2026, 7, 10, 10, 0))
+		recordatorio = RecordatorioMascota.objects.create(
+			mascota=self.mascota_a,
+			usuario=self.client_a,
+			veterinaria=self.vet_a,
+			tipo=RecordatorioMascota.TipoRecordatorio.VACUNA,
+			titulo="Refuerzo anual",
+			fecha_programada=(now + timedelta(days=1)).date(),
+			hora_programada=time(10, 0),
+			notificar=True,
+			dias_anticipacion=1,
+		)
+
+		first = RecordatorioNotificacionService.procesar_pendientes(now=now)
+		second = RecordatorioNotificacionService.procesar_pendientes(now=now)
+		recordatorio.refresh_from_db()
+
+		self.assertEqual(first["creados"], 1)
+		self.assertEqual(second["creados"], 0)
+		self.assertEqual(recordatorio.intentos_notificacion, 1)
+		self.assertIsNotNone(recordatorio.fecha_notificacion_enviada)
+		self.assertEqual(
+			Notificacion.objects.filter(
+				usuario=self.client_a,
+				id_entidad_relacionada=recordatorio.id_recordatorio,
+			).count(),
+			1,
+		)
+		push_mock.assert_called_once()
+
+	def test_evolucion_create_update_delete_and_validate_weight(self):
+		self.client.force_login(self.client_a)
+		invalid_response = self.client.post(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/evolucion/",
+			{
+				"peso": "0",
+				"condicion_corporal": "NORMAL",
+				"nota": "Peso invalido",
+				"fecha_registro": "2026-07-06",
+			},
+			format="json",
+		)
+		self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+		create_response = self.client.post(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/evolucion/",
+			{
+				"peso": "8.40",
+				"condicion_corporal": "NORMAL",
+				"nota": "Come mejor",
+				"fecha_registro": "2026-07-06",
+			},
+			format="json",
+		)
+		self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+		registro_id = create_response.data["id_registro"]
+		registro = RegistroEvolucionMascota.objects.get(pk=registro_id)
+		self.assertEqual(registro.usuario_id, self.client_a.id_usuario)
+		self.assertEqual(registro.veterinaria_id, self.vet_a.id_veterinaria)
+
+		list_response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_a.id_mascota}/evolucion/"
+		)
+		self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(len(list_response.data), 1)
+
+		update_response = self.client.patch(
+			f"/api/gestion/clientes/evolucion/{registro_id}/",
+			{"peso": "8.90", "condicion_corporal": "SOBREPESO"},
+			format="json",
+		)
+		self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(update_response.data["condicion_corporal"], "SOBREPESO")
+
+		delete_response = self.client.delete(
+			f"/api/gestion/clientes/evolucion/{registro_id}/"
+		)
+		self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+
+		other_pet_response = self.client.get(
+			f"/api/gestion/clientes/mascotas/{self.mascota_b.id_mascota}/evolucion/"
+		)
+		self.assertEqual(other_pet_response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @override_settings(BITACORA_SECRET_KEYS=[FERNET_TEST_KEY])

@@ -1,2 +1,4 @@
 from .mascota_serializer import MascotaSerializer
 from .adopcion_serializer import AdopcionSerializer
+from .recordatorio_mascota_serializer import RecordatorioMascotaSerializer
+from .registro_evolucion_mascota_serializer import RegistroEvolucionMascotaSerializer

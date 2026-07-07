@@ -16,10 +16,13 @@ from apps.GestionInventarioProveedores.models import (
 	CategoriaProducto,
 	MovimientoInventario,
 	Producto,
+	ProductoFavorito,
 	Proveedor,
 	PuntoInventario,
 	StockPunto,
 )
+from apps.GestionServiciosyReserva.models import Especie, Raza
+from apps.GestionClientesyMascotas.models import Mascota
 
 FERNET_TEST_KEY = "y-8vRXvZL5t7I8S_dZd2a0B7aKXzH_kL8BkpE9SLiW8="
 
@@ -216,6 +219,95 @@ class ProductoTenantTests(APITestCase):
 		self.assertTrue(
 			"precio_compra" in response.data or "precio_venta" in response.data,
 		)
+
+	def test_favoritos_create_list_catalog_flag_and_delete(self):
+		self.client.force_login(self.user)
+		producto = Producto.objects.get(nombre="Antiparasitario", veterinaria=self.vet_a)
+
+		create_response = self.client.post(
+			"/api/gestion/inventario/favoritos/",
+			{"id_producto": producto.id_producto},
+			format="json",
+		)
+		self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+		self.assertTrue(
+			ProductoFavorito.objects.filter(
+				usuario=self.user,
+				producto=producto,
+				veterinaria=self.vet_a,
+			).exists()
+		)
+
+		list_response = self.client.get("/api/gestion/inventario/favoritos/")
+		self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+		self.assertEqual(len(list_response.data), 1)
+		self.assertEqual(list_response.data[0]["producto"]["id_producto"], producto.id_producto)
+
+		catalog_response = self.client.get("/api/gestion/inventario/catalogo-publico/")
+		self.assertEqual(catalog_response.status_code, status.HTTP_200_OK)
+		favorited = [
+			item for item in catalog_response.data
+			if item["id_producto"] == producto.id_producto
+		]
+		self.assertEqual(len(favorited), 1)
+		self.assertTrue(favorited[0]["es_favorito"])
+
+		delete_response = self.client.delete(
+			f"/api/gestion/inventario/favoritos/{producto.id_producto}/"
+		)
+		self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
+		self.assertFalse(
+			ProductoFavorito.objects.filter(
+				usuario=self.user,
+				producto=producto,
+				veterinaria=self.vet_a,
+			).exists()
+		)
+
+	def test_recomendaciones_por_mascota_return_tenant_products(self):
+		self.client.force_login(self.user)
+		especie = Especie.objects.create(nombre="Canino")
+		raza = Raza.objects.create(nombre="Mestizo", especie=especie)
+		mascota = Mascota.objects.create(
+			usuario=self.user,
+			especie=especie,
+			raza=raza,
+			veterinaria=self.vet_a,
+			nombre="Rocky",
+			alergias="pollo",
+		)
+		producto = Producto.objects.create(
+			categoria_producto=self.categoria_a,
+			proveedor=self.proveedor_a,
+			nombre="Alimento perro sin pollo",
+			descripcion="Alimento para perro adulto",
+			precio_compra=25,
+			precio_venta=35,
+			estado=True,
+			visible_catalogo=True,
+			tipo_mascota=Producto.TipoMascota.PERRO,
+			veterinaria=self.vet_a,
+		)
+
+		response = self.client.get(
+			f"/api/gestion/inventario/recomendaciones/?mascota_id={mascota.id_mascota}"
+		)
+		self.assertEqual(response.status_code, status.HTTP_200_OK)
+		ids = [item["producto"]["id_producto"] for item in response.data["recomendaciones"]]
+		self.assertIn(producto.id_producto, ids)
+		self.assertEqual(response.data["mascota"]["id_mascota"], mascota.id_mascota)
+
+		mascota_otra = Mascota.objects.create(
+			usuario=self.user,
+			especie=especie,
+			raza=raza,
+			veterinaria=self.vet_b,
+			nombre="Michi",
+		)
+		other_response = self.client.get(
+			f"/api/gestion/inventario/recomendaciones/?mascota_id={mascota_otra.id_mascota}"
+		)
+		self.assertEqual(other_response.status_code, status.HTTP_404_NOT_FOUND)
 
 
 @override_settings(BITACORA_SECRET_KEYS=[FERNET_TEST_KEY])
